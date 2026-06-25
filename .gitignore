@@ -1,0 +1,18 @@
+# Dependências locais e arquivos temporários
+node_modules/
+.DS_Store
+Thumbs.db
+
+# Configurações locais e logs do Firebase
+.firebase/
+*-debug.log
+.firebaserc
+
+# IDEs e editores
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
