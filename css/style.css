@@ -6,8 +6,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
 :root {
-    --primary: #2563eb;
-    --primary-hover: #1d4ed8;
+    --primary: #f05179;
+    --primary-hover: #d93c63;
     --background: #f8fafc;
     --card-bg: #ffffff;
     --text-main: #0f172a;
@@ -95,7 +95,7 @@ header {
 
 .nav-link.active {
     color: var(--primary);
-    background-color: #eff6ff;
+    background-color: #fff1f2;
 }
 
 /* Layout Principal */
