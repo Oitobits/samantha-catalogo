@@ -87,8 +87,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Observa alterações no estado de login
         firebase.auth().onAuthStateChanged(async (user) => {
             if (user) {
-                // Email permitido (exclusivo edenirm@gmail.com)
-                if (user.email === 'edenirm@gmail.com') {
+                // Emails permitidos para administração
+                const allowedEmails = ['edenirm@gmail.com', 'atacadofacilita21@gmail.com'];
+                if (user.email && allowedEmails.includes(user.email.toLowerCase())) {
                     adminUserEmail.textContent = user.email;
                     adminAuthContainer.style.display = 'none';
                     adminPanelContent.style.display = 'flex';

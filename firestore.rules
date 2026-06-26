@@ -8,8 +8,8 @@ service cloud.firestore {
       // Qualquer um pode ler os produtos (vendedores externos e clientes na vitrine)
       allow read: if true;
       
-      // Apenas o administrador autenticado com o e-mail 'edenirm@gmail.com' pode alterar os dados
-      allow write: if request.auth != null && request.auth.token.email == 'edenirm@gmail.com';
+      // Apenas os e-mails autorizados podem alterar os dados
+      allow write: if request.auth != null && (request.auth.token.email == 'edenirm@gmail.com' || request.auth.token.email == 'atacadofacilita21@gmail.com');
     }
   }
 }
