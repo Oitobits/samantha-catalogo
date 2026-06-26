@@ -38,8 +38,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Inicialização
     try {
-        await initializeDemoProducts();
-        
         if (!isFirebase) {
             // Em modo local (IndexedDB), exibe tudo imediatamente sem autenticação
             document.getElementById('adminAuthContainer').style.display = 'none';

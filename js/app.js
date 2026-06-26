@@ -24,7 +24,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Inicialização da base de dados e carregamento dos produtos
     try {
-        await initializeDemoProducts();
         await loadCatalog();
     } catch (error) {
         console.error('Falha ao inicializar o banco de dados:', error);
