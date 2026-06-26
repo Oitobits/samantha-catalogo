@@ -251,8 +251,8 @@ main {
 
 .product-desc {
     font-size: 0.9rem;
-    color: var(--text-muted);
-    font-weight: 400;
+    color: var(--text-main);
+    font-weight: 600;
     margin-bottom: 1rem;
     display: -webkit-box;
     -webkit-line-clamp: 2;

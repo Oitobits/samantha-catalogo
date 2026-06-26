@@ -69,6 +69,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { title: fullDesc, details: fullDesc };
     }
 
+    // Auxiliar: Retorna o título amigável do produto (usa campo nome ou fallback)
+    function getProductTitle(produto) {
+        return produto.nome || parseProductText(produto.descricao).title;
+    }
+
     // Filtra e ordena os produtos baseado nas escolhas do usuário
     function applyFiltersAndSort() {
         const query = searchInput.value.toLowerCase().trim();
@@ -77,9 +82,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 1. Filtrar ativos
         let result = allProducts.filter(p => p.status === 'ativo');
 
-        // 2. Aplicar busca por texto (código, referência, descrição)
+        // 2. Aplicar busca por texto (nome, código, referência, descrição)
         if (query) {
             result = result.filter(p => 
+                (p.nome && p.nome.toLowerCase().includes(query)) ||
                 (p.codigo && p.codigo.toLowerCase().includes(query)) ||
                 (p.referencia && p.referencia.toLowerCase().includes(query)) ||
                 (p.descricao && p.descricao.toLowerCase().includes(query))
@@ -93,14 +99,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             result.sort((a, b) => b.preco - a.preco);
         } else if (sortBy === 'alpha-asc') {
             result.sort((a, b) => {
-                const titleA = parseProductText(a.descricao).title.toLowerCase();
-                const titleB = parseProductText(b.descricao).title.toLowerCase();
+                const titleA = getProductTitle(a).toLowerCase();
+                const titleB = getProductTitle(b).toLowerCase();
                 return titleA.localeCompare(titleB);
             });
         } else if (sortBy === 'alpha-desc') {
             result.sort((a, b) => {
-                const titleA = parseProductText(a.descricao).title.toLowerCase();
-                const titleB = parseProductText(b.descricao).title.toLowerCase();
+                const titleA = getProductTitle(a).toLowerCase();
+                const titleB = getProductTitle(b).toLowerCase();
                 return titleB.localeCompare(titleA);
             });
         }
@@ -125,7 +131,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         filteredProducts.forEach(produto => {
-            const parsed = parseProductText(produto.descricao);
+            const displayTitle = getProductTitle(produto);
             
             const card = document.createElement('div');
             card.className = 'product-card';
@@ -136,14 +142,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             card.innerHTML = `
                 <div class="product-image-container">
-                    <img src="${imgSrc}" alt="${parsed.title}" loading="lazy">
+                    <img src="${imgSrc}" alt="${displayTitle}" loading="lazy">
                 </div>
                 <div class="product-info">
                     <div class="product-meta">
                         <span class="product-code">CÓD: ${produto.codigo || 'S/C'}</span>
                         <span class="product-ref">${produto.referencia || 'S/R'}</span>
                     </div>
-                    <h3 class="product-desc" title="${produto.descricao}">${parsed.title}</h3>
+                    <h3 class="product-desc" title="${displayTitle}">${displayTitle}</h3>
                     <div class="product-footer">
                         <span class="product-price">R$ ${produto.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         <span class="badge badge-success" style="font-size: 0.7rem; font-weight: 500;">Disponível</span>
@@ -160,15 +166,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Abre o modal com os detalhes do produto
     function showProductDetails(produto) {
-        const parsed = parseProductText(produto.descricao);
+        const displayTitle = getProductTitle(produto);
+        const displayDescription = produto.nome ? (produto.descricao || '') : (parseProductText(produto.descricao).details || produto.descricao || '');
         const imgSrc = produto.imagem || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 24 24" fill="none" stroke="%23cbd5e1" stroke-width="1" style="background:%23f8fafc"><rect width="24" height="24" rx="2"/></svg>';
 
         modalImage.src = imgSrc;
-        modalImage.alt = parsed.title;
+        modalImage.alt = displayTitle;
         modalCode.textContent = `Código: ${produto.codigo || 'Não informado'}`;
         modalRef.textContent = `Ref: ${produto.referencia || 'Não informado'}`;
-        modalTitle.textContent = parsed.title;
-        modalDescription.textContent = produto.descricao;
+        modalTitle.textContent = displayTitle;
+        
+        // Exibe ou esconde a descrição dependendo do conteúdo
+        const descTitleElement = document.querySelector('.modal-desc-title');
+        if (displayDescription) {
+            modalDescription.textContent = displayDescription;
+            modalDescription.style.display = 'block';
+            if (descTitleElement) descTitleElement.style.display = 'block';
+        } else {
+            modalDescription.textContent = '';
+            modalDescription.style.display = 'none';
+            if (descTitleElement) descTitleElement.style.display = 'none';
+        }
+        
         modalPrice.textContent = `R$ ${produto.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
         detailsModal.classList.add('open');

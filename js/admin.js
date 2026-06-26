@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnNewProduct = document.getElementById('btnNewProduct');
     
     const prodId = document.getElementById('prodId');
+    const prodName = document.getElementById('prodName');
     const prodCode = document.getElementById('prodCode');
     const prodRef = document.getElementById('prodRef');
     const prodPrice = document.getElementById('prodPrice');
@@ -195,6 +196,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let filtered = allProducts;
         if (query) {
             filtered = allProducts.filter(p => 
+                (p.nome && p.nome.toLowerCase().includes(query)) ||
                 (p.codigo && p.codigo.toLowerCase().includes(query)) ||
                 (p.referencia && p.referencia.toLowerCase().includes(query)) ||
                 (p.descricao && p.descricao.toLowerCase().includes(query))
@@ -224,16 +226,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         filtered.forEach(produto => {
             const tr = document.createElement('tr');
             
-            const parsed = parseProductText(produto.descricao);
+            const displayTitle = produto.nome || (parseProductText(produto.descricao).title);
             const imgSrc = produto.imagem || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="%23cbd5e1" stroke-width="1"><rect width="24" height="24" rx="2"/></svg>';
             const isActive = produto.status === 'ativo';
 
             tr.innerHTML = `
                 <td>
                     <div class="table-product-info">
-                        <img src="${imgSrc}" alt="${parsed.title}" loading="lazy">
+                        <img src="${imgSrc}" alt="${displayTitle}" loading="lazy">
                         <div class="table-product-details">
-                            <span class="table-product-desc" title="${produto.descricao}">${parsed.title}</span>
+                            <span class="table-product-desc" title="${produto.descricao || ''}">${displayTitle}</span>
                             <span class="table-product-code">COD: ${produto.codigo || 'S/C'} | REF: ${produto.referencia || 'S/R'}</span>
                         </div>
                     </div>
@@ -316,6 +318,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.preventDefault();
 
         const idValue = prodId.value;
+        const nome = prodName.value.trim();
         const codigo = prodCode.value.trim();
         const referencia = prodRef.value.trim();
         const preco = parseFloat(prodPrice.value);
@@ -323,6 +326,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const status = prodStatus.checked ? 'ativo' : 'inativo';
 
         const produtoData = {
+            nome,
             codigo,
             referencia,
             preco,
@@ -357,6 +361,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const produto = await getProductById(id);
             if (produto) {
                 prodId.value = produto.id;
+                prodName.value = produto.nome || '';
                 prodCode.value = produto.codigo || '';
                 prodRef.value = produto.referencia || '';
                 prodPrice.value = produto.preco || '';
