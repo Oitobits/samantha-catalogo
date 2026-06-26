@@ -29,61 +29,12 @@ if (checkFirebaseConfig()) {
         dbFirestore = firebase.firestore();
         isFirebase = true;
         console.log('🔥 Conectado com sucesso ao Firebase online.');
-        
-        // Exibe um pequeno indicador visual de modo online no console
-        document.addEventListener('DOMContentLoaded', () => {
-            showConnectionBadge(true);
-        });
     } catch (error) {
         console.error('Erro ao inicializar Firebase. Usando IndexedDB local como fallback.', error);
         isFirebase = false;
-        setupLocalFallback();
     }
 } else {
     console.log('ℹ️ Firebase não configurado em config.js. Usando IndexedDB local.');
-    setupLocalFallback();
-}
-
-function setupLocalFallback() {
-    document.addEventListener('DOMContentLoaded', () => {
-        showConnectionBadge(false);
-    });
-}
-
-// Exibe um banner discreto informando o modo de conexão atual
-function showConnectionBadge(online) {
-    const badge = document.createElement('div');
-    badge.style.position = 'fixed';
-    badge.style.bottom = '1rem';
-    badge.style.right = '1rem';
-    badge.style.padding = '0.5rem 1rem';
-    badge.style.borderRadius = '20px';
-    badge.style.fontSize = '0.8rem';
-    badge.style.fontWeight = '600';
-    badge.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
-    badge.style.zIndex = '9999';
-    badge.style.display = 'flex';
-    badge.style.alignItems = 'center';
-    badge.style.gap = '0.5rem';
-
-    if (online) {
-        badge.style.backgroundColor = '#ecfdf5';
-        badge.style.color = '#10b981';
-        badge.style.border = '1px solid #a7f3d0';
-        badge.innerHTML = `
-            <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:#10b981;"></span>
-            Nuvem Online (Firebase)
-        `;
-    } else {
-        badge.style.backgroundColor = '#fffbeb';
-        badge.style.color = '#d97706';
-        badge.style.border = '1px solid #fde68a';
-        badge.innerHTML = `
-            <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:#d97706;"></span>
-            Modo Local (IndexedDB)
-        `;
-    }
-    document.body.appendChild(badge);
 }
 
 // ==========================================
