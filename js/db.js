@@ -248,8 +248,13 @@ function compressImage(file, maxWidth = 800, maxHeight = 800) {
     });
 }
 
-// Inicializa com dados demo caso o banco esteja vazio
+// Inicializa com dados demo caso o banco esteja vazio e seja o primeiro acesso
 async function initializeDemoProducts() {
+    // Evita recriar produtos de teste caso o usuário tenha limpado o banco de dados
+    if (localStorage.getItem('demo_products_loaded') === 'true') {
+        return;
+    }
+
     const produtos = await getAllProducts();
     if (produtos.length === 0) {
         console.log('Banco de dados vazio. Adicionando produtos de demonstração...');
@@ -307,6 +312,10 @@ async function initializeDemoProducts() {
         for (const item of demoData) {
             await addProduct(item);
         }
+        localStorage.setItem('demo_products_loaded', 'true');
         console.log('Produtos de demonstração carregados com sucesso no banco de dados ativo!');
+    } else {
+        // Se o banco de dados já possuir produtos de antes, marcamos a flag para nunca recriar
+        localStorage.setItem('demo_products_loaded', 'true');
     }
 }
