@@ -11,5 +11,14 @@ service cloud.firestore {
       // Apenas os e-mails autorizados podem alterar os dados
       allow write: if request.auth != null && (request.auth.token.email == 'edenirm@gmail.com' || request.auth.token.email == 'atacadofacilita21@gmail.com');
     }
+
+    // Regras para a coleção de categorias
+    match /categorias/{document} {
+      // Qualquer um pode ler as categorias
+      allow read: if true;
+      
+      // Apenas os e-mails autorizados podem alterar os dados
+      allow write: if request.auth != null && (request.auth.token.email == 'edenirm@gmail.com' || request.auth.token.email == 'atacadofacilita21@gmail.com');
+    }
   }
 }

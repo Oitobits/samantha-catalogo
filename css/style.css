@@ -831,3 +831,73 @@ footer.site-footer {
     margin-top: 3rem;
     background-color: var(--card-bg);
 }
+
+/* Barra de Categorias */
+.categories-bar {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 0.25rem 0;
+    margin-bottom: 1.5rem;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+}
+
+.categories-bar::-webkit-scrollbar {
+    height: 4px;
+}
+
+.categories-bar::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 4px;
+}
+
+.category-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: var(--transition);
+}
+
+.category-pill:hover {
+    color: var(--text-main);
+    border-color: var(--text-light);
+}
+
+.category-pill.active {
+    background-color: var(--primary);
+    border-color: var(--primary);
+    color: white;
+    font-weight: 600;
+}
+
+.category-count {
+    font-size: 0.7rem;
+    background-color: #f1f5f9;
+    color: var(--text-muted);
+    padding: 0.1rem 0.35rem;
+    border-radius: 9999px;
+    font-weight: 600;
+    transition: var(--transition);
+}
+
+.category-pill.active .category-count {
+    background-color: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+#categoriesList li {
+    transition: var(--transition);
+}
+#categoriesList li:hover {
+    background-color: #f8fafc;
+}

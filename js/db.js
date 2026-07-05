@@ -41,8 +41,9 @@ if (checkFirebaseConfig()) {
 // CONFIGURAÇÃO DO INDEXEDDB (FALLBACK LOCAL)
 // ==========================================
 const DB_NAME = 'SamanthaCatalogoDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'produtos';
+const CATEGORIES_STORE = 'categorias';
 
 function openIndexedDB() {
     return new Promise((resolve, reject) => {
@@ -56,6 +57,9 @@ function openIndexedDB() {
                 store.createIndex('codigo', 'codigo', { unique: false });
                 store.createIndex('status', 'status', { unique: false });
                 store.createIndex('preco', 'preco', { unique: false });
+            }
+            if (!db.objectStoreNames.contains(CATEGORIES_STORE)) {
+                db.createObjectStore(CATEGORIES_STORE, { keyPath: 'id', autoIncrement: true });
             }
         };
     });
@@ -246,6 +250,110 @@ function compressImage(file, maxWidth = 800, maxHeight = 800) {
         };
         reader.onerror = (err) => reject(err);
     });
+}
+
+// ==========================================
+// FUNÇÕES DE CRUD DE CATEGORIAS
+// ==========================================
+
+// Obter todas as categorias
+async function getAllCategories() {
+    if (isFirebase) {
+        try {
+            const snapshot = await dbFirestore.collection('categorias').get();
+            const list = [];
+            snapshot.forEach(doc => {
+                list.push({ id: doc.id, ...doc.data() });
+            });
+            return list;
+        } catch (err) {
+            console.error('Erro ao ler categorias do Firestore:', err);
+            throw err;
+        }
+    } else {
+        const db = await openIndexedDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(CATEGORIES_STORE, 'readonly');
+            const store = transaction.objectStore(CATEGORIES_STORE);
+            const request = store.getAll();
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    }
+}
+
+// Adicionar categoria
+async function addCategory(categoria) {
+    categoria.dataCadastro = new Date().toISOString();
+    if (isFirebase) {
+        try {
+            const docRef = await dbFirestore.collection('categorias').add(categoria);
+            return docRef.id;
+        } catch (err) {
+            console.error('Erro ao adicionar categoria no Firestore:', err);
+            throw err;
+        }
+    } else {
+        const db = await openIndexedDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(CATEGORIES_STORE, 'readwrite');
+            const store = transaction.objectStore(CATEGORIES_STORE);
+            const request = store.add(categoria);
+            request.onsuccess = (e) => resolve(e.target.result);
+            request.onerror = () => reject(request.error);
+        });
+    }
+}
+
+// Atualizar categoria
+async function updateCategory(categoria) {
+    categoria.dataAtualizacao = new Date().toISOString();
+    if (isFirebase) {
+        try {
+            const docId = String(categoria.id);
+            const dadosSalvar = { ...categoria };
+            delete dadosSalvar.id;
+            await dbFirestore.collection('categorias').doc(docId).set(dadosSalvar);
+            return true;
+        } catch (err) {
+            console.error('Erro ao atualizar categoria no Firestore:', err);
+            throw err;
+        }
+    } else {
+        const db = await openIndexedDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(CATEGORIES_STORE, 'readwrite');
+            const store = transaction.objectStore(CATEGORIES_STORE);
+            categoria.id = Number(categoria.id);
+            const dadosSalvar = { ...categoria };
+            delete dadosSalvar.id;
+            const request = store.put({ id: categoria.id, ...dadosSalvar });
+            request.onsuccess = () => resolve(true);
+            request.onerror = () => reject(request.error);
+        });
+    }
+}
+
+// Excluir categoria
+async function deleteCategory(id) {
+    if (isFirebase) {
+        try {
+            await dbFirestore.collection('categorias').doc(String(id)).delete();
+            return true;
+        } catch (err) {
+            console.error('Erro ao excluir categoria no Firestore:', err);
+            throw err;
+        }
+    } else {
+        const db = await openIndexedDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(CATEGORIES_STORE, 'readwrite');
+            const store = transaction.objectStore(CATEGORIES_STORE);
+            const request = store.delete(Number(id));
+            request.onsuccess = () => resolve(true);
+            request.onerror = () => reject(request.error);
+        });
+    }
 }
 
 

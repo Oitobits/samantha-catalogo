@@ -12,11 +12,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     const prodId = document.getElementById('prodId');
     const prodName = document.getElementById('prodName');
+    const prodCategory = document.getElementById('prodCategory');
     const prodCode = document.getElementById('prodCode');
     const prodRef = document.getElementById('prodRef');
     const prodPrice = document.getElementById('prodPrice');
     const prodDescription = document.getElementById('prodDescription');
     const prodStatus = document.getElementById('prodStatus');
+
+    // Referências do DOM - Categorias
+    const btnManageCategories = document.getElementById('btnManageCategories');
+    const categoriesModal = document.getElementById('categoriesModal');
+    const closeCategoriesModalBtn = document.getElementById('closeCategoriesModalBtn');
+    const categoryForm = document.getElementById('categoryForm');
+    const catId = document.getElementById('catId');
+    const catName = document.getElementById('catName');
+    const btnSubmitCategory = document.getElementById('btnSubmitCategory');
+    const btnCancelCategoryEdit = document.getElementById('btnCancelCategoryEdit');
+    const categoriesList = document.getElementById('categoriesList');
 
     // Referências do DOM - Imagem
     const tabUpload = document.getElementById('tabUpload');
@@ -45,6 +57,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('adminPanelContent').style.display = 'flex';
             document.getElementById('adminUserEmail').textContent = 'Modo Local (Sem Login)';
             document.getElementById('btnAdminLogout').style.display = 'none';
+            document.getElementById('btnManageCategories').style.display = 'inline-flex';
+            await loadCategoriesList();
             await loadProductsList();
         } else {
             // Modo Firebase: Configura login
@@ -95,9 +109,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     adminAuthContainer.style.display = 'none';
                     adminPanelContent.style.display = 'flex';
                     btnAdminLogout.style.display = 'inline-flex';
+                    document.getElementById('btnManageCategories').style.display = 'inline-flex';
                     authErrorMessage.style.display = 'none';
                     
                     // Carrega lista após confirmação de login
+                    await loadCategoriesList();
                     await loadProductsList();
                 } else {
                     // Email não autorizado: exibe aviso e desloga após 3.5 segundos
@@ -229,6 +245,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const displayTitle = produto.nome || (parseProductText(produto.descricao).title);
             const imgSrc = produto.imagem || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="%23cbd5e1" stroke-width="1"><rect width="24" height="24" rx="2"/></svg>';
             const isActive = produto.status === 'ativo';
+            const cat = categories.find(c => String(c.id) === String(produto.categoriaId));
+            const catNameText = cat ? cat.nome : 'Sem Categoria';
 
             tr.innerHTML = `
                 <td>
@@ -236,7 +254,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <img src="${imgSrc}" alt="${displayTitle}" loading="lazy">
                         <div class="table-product-details">
                             <span class="table-product-desc" title="${produto.descricao || ''}">${displayTitle}</span>
-                            <span class="table-product-code">COD: ${produto.codigo || 'S/C'} | REF: ${produto.referencia || 'S/R'}</span>
+                            <span class="table-product-code">COD: ${produto.codigo || 'S/C'} | REF: ${produto.referencia || 'S/R'} | Cat: ${catNameText}</span>
                         </div>
                     </div>
                 </td>
@@ -319,6 +337,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const idValue = prodId.value;
         const nome = prodName.value.trim();
+        const categoriaId = prodCategory.value;
         const codigo = prodCode.value.trim();
         const referencia = prodRef.value.trim();
         const preco = parseFloat(prodPrice.value);
@@ -327,6 +346,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const produtoData = {
             nome,
+            categoriaId,
             codigo,
             referencia,
             preco,
@@ -362,6 +382,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (produto) {
                 prodId.value = produto.id;
                 prodName.value = produto.nome || '';
+                prodCategory.value = produto.categoriaId || '';
                 prodCode.value = produto.codigo || '';
                 prodRef.value = produto.referencia || '';
                 prodPrice.value = produto.preco || '';
@@ -428,6 +449,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function resetForm() {
         productForm.reset();
         prodId.value = '';
+        prodCategory.value = '';
         clearProductImage();
         
         // Resetar interface
@@ -445,4 +467,146 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Busca dinâmica na tabela admin
     adminSearchInput.addEventListener('input', renderAdminProducts);
+
+    // ==========================================
+    // LÓGICA E EVENTOS DE CATEGORIAS
+    // ==========================================
+
+    let categories = [];
+    async function loadCategoriesList() {
+        try {
+            categories = await getAllCategories();
+            categories.sort((a, b) => a.nome.localeCompare(b.nome));
+
+            // Popular o select do produto
+            const currentValue = prodCategory.value;
+            prodCategory.innerHTML = '<option value="">Sem Categoria</option>';
+            categories.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat.id;
+                opt.textContent = cat.nome;
+                prodCategory.appendChild(opt);
+            });
+            prodCategory.value = currentValue;
+
+            // Renderizar no modal
+            renderCategoriesModalList();
+        } catch (err) {
+            console.error('Erro ao carregar categorias:', err);
+        }
+    }
+
+    function renderCategoriesModalList() {
+        categoriesList.innerHTML = '';
+        if (categories.length === 0) {
+            categoriesList.innerHTML = '<li style="padding: 1rem; text-align: center; color: var(--text-muted);">Nenhuma categoria cadastrada.</li>';
+            return;
+        }
+
+        categories.forEach(cat => {
+            const li = document.createElement('li');
+            li.style.display = 'flex';
+            li.style.justifyContent = 'space-between';
+            li.style.alignItems = 'center';
+            li.style.padding = '0.75rem 1rem';
+            li.style.borderBottom = '1px solid var(--border)';
+
+            li.innerHTML = `
+                <span style="font-weight: 500;">${cat.nome}</span>
+                <div style="display: flex; gap: 0.25rem;">
+                    <button class="btn btn-secondary btn-sm edit-cat-btn" data-id="${cat.id}" data-nome="${cat.nome}" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Editar</button>
+                    <button class="btn btn-danger btn-sm delete-cat-btn" data-id="${cat.id}" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Excluir</button>
+                </div>
+            `;
+
+            // Eventos
+            li.querySelector('.edit-cat-btn').addEventListener('click', (e) => {
+                const id = e.target.dataset.id;
+                const nome = e.target.dataset.nome;
+                editCategoryForm(id, nome);
+            });
+
+            li.querySelector('.delete-cat-btn').addEventListener('click', (e) => {
+                const id = e.target.dataset.id;
+                confirmDeleteCategory(id);
+            });
+
+            categoriesList.appendChild(li);
+        });
+    }
+
+    // Formulário de Categoria
+    categoryForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = catId.value;
+        const nome = catName.value.trim();
+
+        if (!nome) return;
+
+        try {
+            if (id) {
+                await updateCategory({ id, nome });
+                alert('Categoria atualizada com sucesso!');
+            } else {
+                await addCategory({ nome });
+                alert('Categoria cadastrada com sucesso!');
+            }
+            resetCategoryForm();
+            await loadCategoriesList();
+            await loadProductsList(); // Recarrega a tabela de produtos para atualizar nomes de categorias
+        } catch (err) {
+            alert('Erro ao salvar categoria.');
+            console.error(err);
+        }
+    });
+
+    function editCategoryForm(id, nome) {
+        catId.value = id;
+        catName.value = nome;
+        btnSubmitCategory.textContent = 'Salvar';
+        btnCancelCategoryEdit.style.display = 'block';
+        catName.focus();
+    }
+
+    function resetCategoryForm() {
+        catId.value = '';
+        catName.value = '';
+        btnSubmitCategory.textContent = 'Adicionar';
+        btnCancelCategoryEdit.style.display = 'none';
+    }
+
+    btnCancelCategoryEdit.addEventListener('click', resetCategoryForm);
+
+    async function confirmDeleteCategory(id) {
+        if (confirm('Tem certeza que deseja excluir esta categoria? Os produtos desta categoria não serão excluídos, mas ficarão "Sem Categoria".')) {
+            try {
+                await deleteCategory(id);
+                alert('Categoria excluída com sucesso!');
+                await loadCategoriesList();
+                await loadProductsList(); // Recarrega a tabela de produtos para atualizar nomes de categorias
+            } catch (err) {
+                alert('Erro ao excluir categoria.');
+                console.error(err);
+            }
+        }
+    }
+
+    // Eventos de Abertura/Fechamento do Modal de Categorias
+    btnManageCategories.addEventListener('click', () => {
+        categoriesModal.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    });
+
+    function closeCategoriesModal() {
+        categoriesModal.classList.remove('open');
+        document.body.style.overflow = '';
+        resetCategoryForm();
+    }
+
+    closeCategoriesModalBtn.addEventListener('click', closeCategoriesModal);
+    categoriesModal.addEventListener('click', (e) => {
+        if (e.target === categoriesModal) {
+            closeCategoriesModal();
+        }
+    });
 });
