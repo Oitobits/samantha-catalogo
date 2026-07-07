@@ -103,7 +103,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         firebase.auth().onAuthStateChanged(async (user) => {
             if (user) {
                 // Emails permitidos para administração
-                const allowedEmails = ['edenirm@gmail.com', 'atacadofacilita21@gmail.com'];
+                const allowedEmails = [
+                    'edenirm@gmail.com',
+                    'atacadofacilita21@gmail.com',
+                    'michele.wilwert@gmail.com',
+                    'adilsonwilwert@gmail.com'
+                ];
                 if (user.email && allowedEmails.includes(user.email.toLowerCase())) {
                     adminUserEmail.textContent = user.email;
                     adminAuthContainer.style.display = 'none';
