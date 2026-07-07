@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const productsContainer = document.getElementById('productsContainer');
     const searchInput = document.getElementById('searchInput');
     const sortSelect = document.getElementById('sortSelect');
-    const categoriesBar = document.getElementById('categoriesBar');
+    const categorySelect = document.getElementById('categorySelect');
     
     // Modal de Detalhes
     const detailsModal = document.getElementById('detailsModal');
@@ -23,7 +23,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     let allProducts = [];
     let filteredProducts = [];
     let categories = [];
-    let activeCategoryId = 'all'; // 'all', 'none' ou id da categoria
 
     // Inicialização da base de dados e carregamento dos produtos
     try {
@@ -49,72 +48,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('Erro ao carregar categorias na vitrine:', err);
         }
         
-        renderCategoryPills();
+        populateCategorySelect();
         applyFiltersAndSort();
     }
 
-    // Renderiza os botões (pills) de categorias no catálogo
-    function renderCategoryPills() {
-        categoriesBar.innerHTML = '';
-        if (categories.length === 0) {
-            categoriesBar.style.display = 'none';
-            return;
-        }
-        categoriesBar.style.display = 'flex';
-
-        // Botão "Todas"
-        const btnAll = document.createElement('button');
-        btnAll.className = `category-pill ${activeCategoryId === 'all' ? 'active' : ''}`;
-        const totalCount = allProducts.filter(p => p.status === 'ativo').length;
-        btnAll.innerHTML = `Todas <span class="category-count">${totalCount}</span>`;
-        btnAll.addEventListener('click', () => {
-            activeCategoryId = 'all';
-            updateActivePill();
-            applyFiltersAndSort();
-        });
-        categoriesBar.appendChild(btnAll);
-
-        // Botões para cada categoria
+    // Popula o select de categorias no filtro
+    function populateCategorySelect() {
+        const currentValue = categorySelect.value;
+        categorySelect.innerHTML = `
+            <option value="all">Todas as Categorias</option>
+            <option value="none">Outros (Sem Categoria)</option>
+        `;
         categories.forEach(cat => {
-            const btn = document.createElement('button');
-            btn.className = `category-pill ${activeCategoryId === String(cat.id) ? 'active' : ''}`;
-            const count = allProducts.filter(p => p.status === 'ativo' && String(p.categoriaId) === String(cat.id)).length;
-            btn.innerHTML = `${cat.nome} <span class="category-count">${count}</span>`;
-            btn.addEventListener('click', () => {
-                activeCategoryId = String(cat.id);
-                updateActivePill();
-                applyFiltersAndSort();
-            });
-            categoriesBar.appendChild(btn);
+            const opt = document.createElement('option');
+            opt.value = cat.id;
+            opt.textContent = cat.nome;
+            categorySelect.appendChild(opt);
         });
-
-        // Botão "Outros" (Sem Categoria) se houver algum produto ativo sem categoria
-        const unassignedCount = allProducts.filter(p => p.status === 'ativo' && !p.categoriaId).length;
-        if (unassignedCount > 0) {
-            const btnNone = document.createElement('button');
-            btnNone.className = `category-pill ${activeCategoryId === 'none' ? 'active' : ''}`;
-            btnNone.innerHTML = `Outros <span class="category-count">${unassignedCount}</span>`;
-            btnNone.addEventListener('click', () => {
-                activeCategoryId = 'none';
-                updateActivePill();
-                applyFiltersAndSort();
-            });
-            categoriesBar.appendChild(btnNone);
-        }
-    }
-
-    function updateActivePill() {
-        const pills = categoriesBar.querySelectorAll('.category-pill');
-        if (pills.length === 0) return;
-        
-        pills.forEach(pill => pill.classList.remove('active'));
-
-        const index = activeCategoryId === 'all' ? 0 : 
-                      activeCategoryId === 'none' ? pills.length - 1 :
-                      categories.findIndex(c => String(c.id) === activeCategoryId) + 1;
-        
-        if (pills[index]) {
-            pills[index].classList.add('active');
+        if (currentValue && categorySelect.querySelector(`option[value="${currentValue}"]`)) {
+            categorySelect.value = currentValue;
         }
     }
 
@@ -151,15 +103,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     function applyFiltersAndSort() {
         const query = searchInput.value.toLowerCase().trim();
         const sortBy = sortSelect.value;
+        const activeCategory = categorySelect.value;
 
         // 1. Filtrar ativos
         let result = allProducts.filter(p => p.status === 'ativo');
 
-        // 1.5. Filtrar por categoria ativa
-        if (activeCategoryId === 'none') {
+        // 1.5. Filtrar por categoria selecionada
+        if (activeCategory === 'none') {
             result = result.filter(p => !p.categoriaId);
-        } else if (activeCategoryId !== 'all') {
-            result = result.filter(p => String(p.categoriaId) === activeCategoryId);
+        } else if (activeCategory !== 'all') {
+            result = result.filter(p => String(p.categoriaId) === activeCategory);
         }
 
         // 2. Aplicar busca por texto (nome, código, referência, descrição)
@@ -283,6 +236,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Eventos
     searchInput.addEventListener('input', applyFiltersAndSort);
     sortSelect.addEventListener('change', applyFiltersAndSort);
+    categorySelect.addEventListener('change', applyFiltersAndSort);
     closeModalBtn.addEventListener('click', closeModal);
 
     // Fechar ao clicar fora do conteúdo do modal

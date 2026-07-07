@@ -34,6 +34,15 @@
                 <input type="text" id="searchInput" placeholder="Pesquisar por descrição, código ou referência...">
             </div>
 
+            <!-- Filtrar por Categoria -->
+            <div class="sort-box">
+                <label for="categorySelect">Categoria:</label>
+                <select id="categorySelect">
+                    <option value="all">Todas</option>
+                    <option value="none">Outros (Sem Categoria)</option>
+                </select>
+            </div>
+
             <!-- Ordenação -->
             <div class="sort-box">
                 <label for="sortSelect">Ordenar por:</label>
@@ -46,9 +55,6 @@
                 </select>
             </div>
         </section>
-
-        <!-- Barra de Categorias -->
-        <section id="categoriesBar" class="categories-bar"></section>
 
         <!-- Grid de Produtos da Vitrine -->
         <section id="productsContainer" class="products-grid">
