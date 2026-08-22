@@ -44,10 +44,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     const adminSearchInput = document.getElementById('adminSearchInput');
     const adminProductsBody = document.getElementById('adminProductsBody');
 
+    // Referências do DOM - Paginação
+    const btnPrevPage = document.getElementById('btnPrevPage');
+    const btnNextPage = document.getElementById('btnNextPage');
+    const paginationInfo = document.getElementById('paginationInfo');
+
     // Estado da imagem e lista
     let currentImage = ''; // Pode ser URL Base64 (upload) ou URL normal (link)
     let imageSourceType = 'upload'; // 'upload' ou 'link'
     let allProducts = [];
+    let currentPage = 1;
+    const itemsPerPage = 15;
 
     // Inicialização
     try {
@@ -207,6 +214,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- CARREGAR PRODUTOS NA TABELA ---
     async function loadProductsList() {
         allProducts = await getAllProducts();
+        currentPage = 1;
         renderAdminProducts();
     }
 
@@ -224,19 +232,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             );
         }
 
-        adminProductsBody.innerHTML = '';
-
-        if (filtered.length === 0) {
-            adminProductsBody.innerHTML = `
-                <tr>
-                    <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">
-                        Nenhum produto cadastrado ou encontrado.
-                    </td>
-                </tr>
-            `;
-            return;
-        }
-
         // Ordena por data de cadastro decrescente (mais novos primeiro)
         filtered.sort((a, b) => {
             const dateA = a.dataCadastro ? new Date(a.dataCadastro) : 0;
@@ -244,7 +239,43 @@ document.addEventListener('DOMContentLoaded', async () => {
             return dateB - dateA;
         });
 
-        filtered.forEach(produto => {
+        // Paginação do array filtrado
+        const totalItems = filtered.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+
+        if (currentPage > totalPages) {
+            currentPage = totalPages;
+        }
+        if (currentPage < 1) {
+            currentPage = 1;
+        }
+
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+        const pageItems = filtered.slice(startIndex, endIndex);
+
+        adminProductsBody.innerHTML = '';
+
+        if (totalItems === 0) {
+            adminProductsBody.innerHTML = `
+                <tr>
+                    <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                        Nenhum produto cadastrado ou encontrado.
+                    </td>
+                </tr>
+            `;
+            paginationInfo.textContent = "Exibindo 0-0 de 0 produtos";
+            btnPrevPage.disabled = true;
+            btnNextPage.disabled = true;
+            return;
+        }
+
+        // Atualizar informações da paginação
+        paginationInfo.textContent = `Exibindo ${startIndex + 1}-${endIndex} de ${totalItems} produtos | Página ${currentPage}/${totalPages}`;
+        btnPrevPage.disabled = currentPage === 1;
+        btnNextPage.disabled = currentPage === totalPages;
+
+        pageItems.forEach(produto => {
             const tr = document.createElement('tr');
             
             const displayTitle = produto.nome || (parseProductText(produto.descricao).title);
@@ -365,15 +396,32 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Atualizar produto existente (o db.js se encarrega de tratar o tipo do ID)
                 produtoData.id = idValue;
                 await updateProduct(produtoData);
+                
+                // Atualizar no cache local
+                const idx = allProducts.findIndex(p => String(p.id) === String(idValue));
+                if (idx !== -1) {
+                    const origProduct = allProducts[idx];
+                    allProducts[idx] = {
+                        ...origProduct,
+                        ...produtoData,
+                        dataCadastro: origProduct.dataCadastro
+                    };
+                }
                 alert('Produto atualizado com sucesso!');
             } else {
-                // Cadastrar novo produto
-                await addProduct(produtoData);
+                // Cadastrar novo produto e obter ID gerado
+                const newId = await addProduct(produtoData);
+                produtoData.id = newId;
+                produtoData.dataCadastro = new Date().toISOString();
+                
+                // Adicionar ao cache local
+                allProducts.push(produtoData);
                 alert('Produto cadastrado com sucesso!');
             }
 
             resetForm();
-            await loadProductsList();
+            // Apenas re-renderiza localmente (muito mais rápido, sem re-fetch)
+            renderAdminProducts();
         } catch (err) {
             alert('Erro ao salvar o produto no banco de dados.');
             console.error(err);
@@ -439,7 +487,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     resetForm();
                 }
 
-                await loadProductsList();
+                // Remover do cache local e re-renderizar
+                allProducts = allProducts.filter(p => String(p.id) !== String(id));
+                renderAdminProducts();
             } catch (err) {
                 alert('Erro ao excluir produto.');
                 console.error(err);
@@ -471,7 +521,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Busca dinâmica na tabela admin
-    adminSearchInput.addEventListener('input', renderAdminProducts);
+    adminSearchInput.addEventListener('input', () => {
+        currentPage = 1;
+        renderAdminProducts();
+    });
+
+    // Eventos de paginação da tabela de produtos
+    btnPrevPage.addEventListener('click', () => {
+        if (currentPage > 1) {
+            currentPage--;
+            renderAdminProducts();
+        }
+    });
+
+    btnNextPage.addEventListener('click', () => {
+        const query = adminSearchInput.value.toLowerCase().trim();
+        let filteredCount = allProducts.length;
+        if (query) {
+            filteredCount = allProducts.filter(p => 
+                (p.nome && p.nome.toLowerCase().includes(query)) ||
+                (p.codigo && p.codigo.toLowerCase().includes(query)) ||
+                (p.referencia && p.referencia.toLowerCase().includes(query)) ||
+                (p.descricao && p.descricao.toLowerCase().includes(query))
+            ).length;
+        }
+        const totalPages = Math.ceil(filteredCount / itemsPerPage) || 1;
+        if (currentPage < totalPages) {
+            currentPage++;
+            renderAdminProducts();
+        }
+    });
 
     // ==========================================
     // LÓGICA E EVENTOS DE CATEGORIAS
@@ -558,7 +637,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             resetCategoryForm();
             await loadCategoriesList();
-            await loadProductsList(); // Recarrega a tabela de produtos para atualizar nomes de categorias
+            renderAdminProducts(); // Apenas re-renderiza localmente para atualizar nomes de categoria
         } catch (err) {
             alert('Erro ao salvar categoria.');
             console.error(err);
@@ -587,8 +666,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             try {
                 await deleteCategory(id);
                 alert('Categoria excluída com sucesso!');
+                
+                // Limpar categoria associada localmente
+                allProducts.forEach(p => {
+                    if (String(p.categoriaId) === String(id)) {
+                        p.categoriaId = '';
+                    }
+                });
+                
                 await loadCategoriesList();
-                await loadProductsList(); // Recarrega a tabela de produtos para atualizar nomes de categorias
+                renderAdminProducts();
             } catch (err) {
                 alert('Erro ao excluir categoria.');
                 console.error(err);

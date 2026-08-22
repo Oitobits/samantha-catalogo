@@ -209,6 +209,15 @@
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Paginação da Tabela de Produtos -->
+                <div class="pagination-container" style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding: 0.5rem 1rem; background-color: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-md);">
+                    <span id="paginationInfo" style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">Exibindo 0-0 de 0 produtos</span>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button id="btnPrevPage" class="btn btn-secondary btn-sm" style="padding: 0.4rem 0.75rem;">Anterior</button>
+                        <button id="btnNextPage" class="btn btn-secondary btn-sm" style="padding: 0.4rem 0.75rem;">Próxima</button>
+                    </div>
+                </div>
             </section>
 
         </div>
@@ -265,7 +274,7 @@
 
     <!-- Configurações e Scripts do Sistema -->
     <script src="js/config.js"></script>
-    <script src="js/db.js?v=2"></script>
-    <script src="js/admin.js?v=2"></script>
+    <script src="js/db.js?v=3"></script>
+    <script src="js/admin.js?v=3"></script>
 </body>
 </html>
