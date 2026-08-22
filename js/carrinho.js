@@ -234,14 +234,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
             };
 
-            // Revela temporariamente o template para renderização
-            pdfTemplate.style.display = 'block';
-
             // Executa html2pdf e faz o download
             await html2pdf().set(options).from(pdfTemplate).save();
-
-            // Esconde novamente
-            pdfTemplate.style.display = 'none';
 
             // Zera o carrinho e volta
             localStorage.removeItem('samantha_cart');
@@ -253,7 +247,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert('Ocorreu um erro ao gerar o seu pedido em PDF. Por favor, tente novamente.');
             submitBtn.disabled = false;
             submitBtn.innerHTML = origBtnHtml;
-            pdfTemplate.style.display = 'none';
         }
     });
 });
