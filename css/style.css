@@ -901,3 +901,142 @@ footer.site-footer {
 #categoriesList li:hover {
     background-color: #f8fafc;
 }
+
+/* Múltiplas Categorias - Tags/Chips no Admin */
+.category-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.6rem;
+    background-color: #f1f5f9;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.category-chip button {
+    background: none;
+    border: none;
+    color: var(--danger);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.category-chip button:hover {
+    color: #dc2626;
+}
+
+/* Múltiplas Imagens - Galeria de Miniaturas no Admin */
+.image-thumb-wrapper {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: visible;
+    background-color: #f8fafc;
+}
+
+.image-thumb-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+}
+
+.remove-image-thumb {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background-color: var(--danger);
+    color: white;
+    border: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    line-height: 1;
+    padding: 0;
+}
+
+.remove-image-thumb:hover {
+    background-color: #b91c1c;
+}
+
+/* Setas de Controle para Múltiplas Imagens (Slideshow) */
+.slide-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: rgba(255, 255, 255, 0.85);
+    color: var(--text-main);
+    border: 1px solid var(--border);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 5;
+    transition: var(--transition);
+    box-shadow: var(--shadow-sm);
+    opacity: 0; /* Oculto por padrão, aparece no hover */
+}
+
+.product-card:hover .slide-arrow,
+.modal-image-container:hover .slide-arrow {
+    opacity: 1;
+}
+
+.slide-arrow:hover {
+    background-color: #ffffff;
+    color: var(--primary);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+.slide-arrow-left {
+    left: 8px;
+}
+
+.slide-arrow-right {
+    right: 8px;
+}
+
+/* Indicadores de bolinha para fotos */
+.slide-dots {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 4px;
+    z-index: 5;
+}
+
+.slide-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(0,0,0,0.1);
+    transition: var(--transition);
+}
+
+.slide-dot.active {
+    background-color: var(--primary);
+    width: 12px;
+    border-radius: 4px;
+}

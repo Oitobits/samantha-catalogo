@@ -112,9 +112,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 1.5. Filtrar por categoria selecionada
         if (activeCategory === 'none') {
-            result = result.filter(p => !p.categoriaId);
+            result = result.filter(p => !p.categoriaId && (!p.categoriasIds || p.categoriasIds.length === 0));
         } else if (activeCategory !== 'all') {
-            result = result.filter(p => String(p.categoriaId) === activeCategory);
+            result = result.filter(p => 
+                String(p.categoriaId) === activeCategory || 
+                (p.categoriasIds && p.categoriasIds.map(String).includes(activeCategory))
+            );
         }
 
         // 2. Aplicar busca por texto (nome, código, referência, descrição)
@@ -177,11 +180,30 @@ document.addEventListener('DOMContentLoaded', async () => {
             card.dataset.id = produto.id;
             
             // Tratamento da imagem (se não houver, usa um placeholder SVG)
-            const imgSrc = produto.imagem || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 24 24" fill="none" stroke="%23cbd5e1" stroke-width="1" style="background:%23f8fafc"><rect width="24" height="24" rx="2"/></svg>';
+            const fallbackSrc = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 24 24" fill="none" stroke="%23cbd5e1" stroke-width="1" style="background:%23f8fafc"><rect width="24" height="24" rx="2"/></svg>';
+            const imgs = produto.imagens && produto.imagens.length > 0 ? produto.imagens : (produto.imagem ? [produto.imagem] : [fallbackSrc]);
+            let currentImgIdx = 0;
+            const hasMultipleImages = imgs.length > 1;
+
+            let arrowsHtml = '';
+            let dotsHtml = '';
+            if (hasMultipleImages) {
+                arrowsHtml = `
+                    <button type="button" class="slide-arrow slide-arrow-left">&lsaquo;</button>
+                    <button type="button" class="slide-arrow slide-arrow-right">&rsaquo;</button>
+                `;
+                dotsHtml = `<div class="slide-dots">`;
+                imgs.forEach((_, i) => {
+                    dotsHtml += `<span class="slide-dot ${i === 0 ? 'active' : ''}"></span>`;
+                });
+                dotsHtml += `</div>`;
+            }
 
             card.innerHTML = `
                 <div class="product-image-container">
-                    <img src="${imgSrc}" alt="${displayTitle}" loading="lazy">
+                    <img class="card-product-img" src="${imgs[0]}" alt="${displayTitle}" loading="lazy">
+                    ${arrowsHtml}
+                    ${dotsHtml}
                 </div>
                 <div class="product-info">
                     <div class="product-meta">
@@ -195,6 +217,39 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </div>
                 </div>
             `;
+
+            if (hasMultipleImages) {
+                const imgElement = card.querySelector('.card-product-img');
+                const btnLeft = card.querySelector('.slide-arrow-left');
+                const btnRight = card.querySelector('.slide-arrow-right');
+                const dots = card.querySelectorAll('.slide-dot');
+
+                const updateCardSlide = (index) => {
+                    currentImgIdx = index;
+                    imgElement.src = imgs[currentImgIdx];
+                    dots.forEach((dot, idx) => {
+                        if (idx === currentImgIdx) {
+                            dot.classList.add('active');
+                        } else {
+                            dot.classList.remove('active');
+                        }
+                    });
+                };
+
+                btnLeft.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    let newIdx = currentImgIdx - 1;
+                    if (newIdx < 0) newIdx = imgs.length - 1;
+                    updateCardSlide(newIdx);
+                });
+
+                btnRight.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    let newIdx = currentImgIdx + 1;
+                    if (newIdx >= imgs.length) newIdx = 0;
+                    updateCardSlide(newIdx);
+                });
+            }
 
             // Adiciona evento de clique para exibir detalhes no modal
             card.addEventListener('click', () => showProductDetails(produto));
@@ -216,13 +271,72 @@ document.addEventListener('DOMContentLoaded', async () => {
     function showProductDetails(produto) {
         const displayTitle = getProductTitle(produto);
         const displayDescription = produto.nome ? (produto.descricao || '') : (parseProductText(produto.descricao).details || produto.descricao || '');
-        const imgSrc = produto.imagem || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 24 24" fill="none" stroke="%23cbd5e1" stroke-width="1" style="background:%23f8fafc"><rect width="24" height="24" rx="2"/></svg>';
-
-        modalImage.src = imgSrc;
+        const fallbackSrc = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 24 24" fill="none" stroke="%23cbd5e1" stroke-width="1" style="background:%23f8fafc"><rect width="24" height="24" rx="2"/></svg>';
+        const imgs = produto.imagens && produto.imagens.length > 0 ? produto.imagens : (produto.imagem ? [produto.imagem] : [fallbackSrc]);
+        
+        modalImage.src = imgs[0];
         modalImage.alt = displayTitle;
         modalCode.textContent = `Código: ${produto.codigo || 'Não informado'}`;
         modalRef.textContent = `Ref: ${produto.referencia || 'Não informado'}`;
         modalTitle.textContent = displayTitle;
+
+        // Limpar qualquer controle de slide anterior no modal
+        const imgContainer = document.querySelector('.modal-image-container');
+        imgContainer.querySelectorAll('.slide-arrow, .slide-dots').forEach(el => el.remove());
+
+        if (imgs.length > 1) {
+            let modalImgIdx = 0;
+
+            // Injetar setas
+            const btnLeft = document.createElement('button');
+            btnLeft.type = 'button';
+            btnLeft.className = 'slide-arrow slide-arrow-left';
+            btnLeft.innerHTML = '&lsaquo;';
+            
+            const btnRight = document.createElement('button');
+            btnRight.type = 'button';
+            btnRight.className = 'slide-arrow slide-arrow-right';
+            btnRight.innerHTML = '&rsaquo;';
+
+            // Injetar dots
+            const dotsContainer = document.createElement('div');
+            dotsContainer.className = 'slide-dots';
+            imgs.forEach((_, i) => {
+                const dot = document.createElement('span');
+                dot.className = `slide-dot ${i === 0 ? 'active' : ''}`;
+                dotsContainer.appendChild(dot);
+            });
+
+            imgContainer.appendChild(btnLeft);
+            imgContainer.appendChild(btnRight);
+            imgContainer.appendChild(dotsContainer);
+
+            const modalDots = dotsContainer.querySelectorAll('.slide-dot');
+
+            const updateModalSlide = (index) => {
+                modalImgIdx = index;
+                modalImage.src = imgs[modalImgIdx];
+                modalDots.forEach((dot, idx) => {
+                    if (idx === modalImgIdx) {
+                        dot.classList.add('active');
+                    } else {
+                        dot.classList.remove('active');
+                    }
+                });
+            };
+
+            btnLeft.addEventListener('click', () => {
+                let newIdx = modalImgIdx - 1;
+                if (newIdx < 0) newIdx = imgs.length - 1;
+                updateModalSlide(newIdx);
+            });
+
+            btnRight.addEventListener('click', () => {
+                let newIdx = modalImgIdx + 1;
+                if (newIdx >= imgs.length) newIdx = 0;
+                updateModalSlide(newIdx);
+            });
+        }
         
         // Exibe ou esconde a descrição dependendo do conteúdo
         const descTitleElement = document.querySelector('.modal-desc-title');

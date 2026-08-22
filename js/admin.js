@@ -29,6 +29,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnSubmitCategory = document.getElementById('btnSubmitCategory');
     const btnCancelCategoryEdit = document.getElementById('btnCancelCategoryEdit');
     const categoriesList = document.getElementById('categoriesList');
+    const btnAddCategoryToProduct = document.getElementById('btnAddCategoryToProduct');
+    const productCategoriesChips = document.getElementById('productCategoriesChips');
 
     // Referências do DOM - Imagem
     const tabUpload = document.getElementById('tabUpload');
@@ -37,8 +39,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const contentLink = document.getElementById('contentLink');
     const prodFile = document.getElementById('prodFile');
     const prodLink = document.getElementById('prodLink');
-    const imagePreview = document.getElementById('imagePreview');
-    const btnRemoveImage = document.getElementById('btnRemoveImage');
+    const btnAddLink = document.getElementById('btnAddLink');
+    const imagesPreviewContainer = document.getElementById('imagesPreviewContainer');
 
     // Referências do DOM - Listagem
     const adminSearchInput = document.getElementById('adminSearchInput');
@@ -49,8 +51,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnNextPage = document.getElementById('btnNextPage');
     const paginationInfo = document.getElementById('paginationInfo');
 
-    // Estado da imagem e lista
-    let currentImage = ''; // Pode ser URL Base64 (upload) ou URL normal (link)
+    // Estado do produto sob edição
+    let selectedProductCategories = []; // IDs de categorias selecionadas
+    let currentImages = []; // URLs Base64 ou links externos de imagens
     let imageSourceType = 'upload'; // 'upload' ou 'link'
     let allProducts = [];
     let currentPage = 1;
@@ -165,50 +168,97 @@ document.addEventListener('DOMContentLoaded', async () => {
         imageSourceType = 'link';
     });
 
-    // Evento de alteração de arquivo (Upload)
+    // Evento de alteração de arquivo (Upload Múltiplo)
     prodFile.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (file) {
+        const files = Array.from(e.target.files);
+        for (const file of files) {
             try {
                 // Comprime a imagem para WebP 800x800 com qualidade 80%
                 const base64Image = await compressImage(file);
-                setProductImage(base64Image);
+                currentImages.push(base64Image);
             } catch (err) {
-                alert('Erro ao processar imagem. Certifique-se de enviar um arquivo válido.');
-                console.error(err);
+                console.error('Erro ao processar imagem:', err);
             }
         }
+        prodFile.value = ''; // Permite subir o mesmo arquivo de novo se desejar
+        renderImagesPreview();
     });
 
-    // Evento de alteração de URL (Link)
-    prodLink.addEventListener('input', () => {
+    // Adicionar imagem via Link Externo
+    btnAddLink.addEventListener('click', () => {
         const url = prodLink.value.trim();
         if (url) {
-            setProductImage(url);
-        } else {
-            clearProductImage();
+            currentImages.push(url);
+            prodLink.value = '';
+            renderImagesPreview();
         }
     });
 
-    // Botão remover imagem
-    btnRemoveImage.addEventListener('click', () => {
-        clearProductImage();
+    // Enter no input de link
+    prodLink.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            btnAddLink.click();
+        }
     });
 
-    function setProductImage(src) {
-        currentImage = src;
-        imagePreview.src = src;
-        imagePreview.style.display = 'block';
-        btnRemoveImage.style.display = 'block';
+    function renderImagesPreview() {
+        imagesPreviewContainer.innerHTML = '';
+        currentImages.forEach((imgSrc, index) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'image-thumb-wrapper';
+            
+            wrapper.innerHTML = `
+                <img src="${imgSrc}" alt="Miniatura ${index + 1}">
+                <button type="button" class="remove-image-thumb" data-index="${index}">&times;</button>
+            `;
+            
+            wrapper.querySelector('.remove-image-thumb').addEventListener('click', (e) => {
+                const idx = parseInt(e.target.dataset.index);
+                currentImages.splice(idx, 1);
+                renderImagesPreview();
+            });
+            
+            imagesPreviewContainer.appendChild(wrapper);
+        });
     }
 
-    function clearProductImage() {
-        currentImage = '';
-        imagePreview.src = '';
-        imagePreview.style.display = 'none';
-        btnRemoveImage.style.display = 'none';
-        prodFile.value = '';
-        prodLink.value = '';
+    // --- LOGICA DE ADICIONAR CATEGORIAS AO PRODUTO ---
+    btnAddCategoryToProduct.addEventListener('click', () => {
+        const catValue = prodCategory.value;
+        if (!catValue) return;
+
+        if (selectedProductCategories.includes(catValue)) {
+            alert('Esta categoria já foi adicionada a este produto.');
+            return;
+        }
+
+        selectedProductCategories.push(catValue);
+        renderProductCategoriesChips();
+        prodCategory.value = ''; // Limpa seleção
+    });
+
+    function renderProductCategoriesChips() {
+        productCategoriesChips.innerHTML = '';
+        selectedProductCategories.forEach((catIdValue, index) => {
+            const cat = categories.find(c => String(c.id) === String(catIdValue));
+            if (!cat) return;
+
+            const chip = document.createElement('span');
+            chip.className = 'category-chip';
+            chip.innerHTML = `
+                ${cat.nome}
+                <button type="button" data-index="${index}">&times;</button>
+            `;
+
+            chip.querySelector('button').addEventListener('click', (e) => {
+                const idx = parseInt(e.target.dataset.index);
+                selectedProductCategories.splice(idx, 1);
+                renderProductCategoriesChips();
+            });
+
+            productCategoriesChips.appendChild(chip);
+        });
     }
 
     // --- CARREGAR PRODUTOS NA TABELA ---
@@ -373,7 +423,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const idValue = prodId.value;
         const nome = prodName.value.trim();
-        const categoriaId = prodCategory.value;
         const codigo = prodCode.value.trim();
         const referencia = prodRef.value.trim();
         const preco = parseFloat(prodPrice.value);
@@ -382,13 +431,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const produtoData = {
             nome,
-            categoriaId,
+            categoriaId: selectedProductCategories[0] || '',
+            categoriasIds: selectedProductCategories,
             codigo,
             referencia,
             preco,
             descricao,
             status,
-            imagem: currentImage
+            imagem: currentImages[0] || '',
+            imagens: currentImages
         };
 
         try {
@@ -435,27 +486,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (produto) {
                 prodId.value = produto.id;
                 prodName.value = produto.nome || '';
-                prodCategory.value = produto.categoriaId || '';
+                prodCategory.value = ''; // Limpa o select para nova adição
                 prodCode.value = produto.codigo || '';
                 prodRef.value = produto.referencia || '';
                 prodPrice.value = produto.preco || '';
                 prodDescription.value = produto.descricao || '';
                 prodStatus.checked = produto.status === 'ativo';
 
-                if (produto.imagem) {
-                    setProductImage(produto.imagem);
-                    // Decide qual tab ativar dependendo da imagem
-                    if (produto.imagem.startsWith('data:')) {
-                        // É Base64/Blob, então foi upload
-                        tabUpload.click();
-                    } else {
-                        // É um link externo
-                        tabLink.click();
-                        prodLink.value = produto.imagem;
-                    }
-                } else {
-                    clearProductImage();
-                }
+                // Carrega categorias vinculadas
+                selectedProductCategories = produto.categoriasIds || (produto.categoriaId ? [produto.categoriaId] : []);
+                renderProductCategoriesChips();
+
+                // Carrega imagens vinculadas
+                currentImages = produto.imagens || (produto.imagem ? [produto.imagem] : []);
+                renderImagesPreview();
 
                 // Ajustar interface
                 formTitle.innerHTML = `
@@ -505,7 +549,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         productForm.reset();
         prodId.value = '';
         prodCategory.value = '';
-        clearProductImage();
+        prodFile.value = '';
+        prodLink.value = '';
+        
+        // Limpar estados locais
+        selectedProductCategories = [];
+        currentImages = [];
+        
+        // Limpar prévias
+        productCategoriesChips.innerHTML = '';
+        imagesPreviewContainer.innerHTML = '';
         
         // Resetar interface
         formTitle.innerHTML = `

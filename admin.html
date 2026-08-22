@@ -102,10 +102,16 @@
 
                         <!-- Categoria -->
                         <div class="form-group">
-                            <label for="prodCategory">Categoria</label>
-                            <select id="prodCategory" class="form-control">
-                                <option value="">Sem Categoria</option>
-                            </select>
+                            <label for="prodCategory">Categorias (Opcional)</label>
+                            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                <select id="prodCategory" class="form-control" style="margin-bottom: 0;">
+                                    <option value="">Sem Categoria</option>
+                                </select>
+                                <button type="button" id="btnAddCategoryToProduct" class="btn btn-secondary" style="padding: 0 1rem; font-weight: bold; font-size: 1.1rem; height: 42px;">+</button>
+                            </div>
+                            <div id="productCategoriesChips" style="display: flex; flex-wrap: wrap; gap: 0.35rem;">
+                                <!-- Chips injetados dinamicamente via JS -->
+                            </div>
                         </div>
 
                         <!-- Nome do Produto -->
@@ -142,15 +148,15 @@
 
                                 <!-- Tab Link Externo -->
                                 <div class="image-tab-content" id="contentLink">
-                                    <input type="url" id="prodLink" class="form-control" placeholder="https://exemplo.com/imagem.jpg">
+                                    <div style="display: flex; gap: 0.5rem;">
+                                        <input type="url" id="prodLink" class="form-control" placeholder="https://exemplo.com/imagem.jpg" style="margin-bottom: 0;">
+                                        <button type="button" id="btnAddLink" class="btn btn-secondary" style="padding: 0 1rem; font-weight: bold; font-size: 1.1rem; height: 42px;">+</button>
+                                    </div>
                                 </div>
 
-                                <!-- Visualização Prévia -->
-                                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.5rem;">
-                                    <img id="imagePreview" class="image-preview" src="" alt="Prévia">
-                                    <button type="button" id="btnRemoveImage" class="btn btn-danger btn-sm" style="display: none; padding: 0.2rem 0.5rem; font-size: 0.75rem;">
-                                        Remover
-                                    </button>
+                                <!-- Visualização Prévia de Múltiplas Fotos -->
+                                <div id="imagesPreviewContainer" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; width: 100%;">
+                                    <!-- Miniaturas injetadas dinamicamente via JS -->
                                 </div>
                             </div>
                         </div>
@@ -274,7 +280,7 @@
 
     <!-- Configurações e Scripts do Sistema -->
     <script src="js/config.js"></script>
-    <script src="js/db.js?v=3"></script>
-    <script src="js/admin.js?v=3"></script>
+    <script src="js/db.js?v=4"></script>
+    <script src="js/admin.js?v=4"></script>
 </body>
 </html>
