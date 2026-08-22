@@ -20,11 +20,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     const modalDescription = document.getElementById('modalDescription');
     const modalPrice = document.getElementById('modalPrice');
 
+    // Controles do Carrinho no Modal
+    const btnDecQty = document.getElementById('btnDecQty');
+    const btnIncQty = document.getElementById('btnIncQty');
+    const modalQtyInput = document.getElementById('modalQtyInput');
+    const btnAddToCart = document.getElementById('btnAddToCart');
+    const cartBadgeCount = document.getElementById('cartBadgeCount');
+
     // Estado local da aplicação
     let allProducts = [];
     let filteredProducts = [];
     let categories = [];
     let visibleCount = 16;
+    let currentOpenedProduct = null;
 
     // Inicialização da base de dados e carregamento dos produtos
     try {
@@ -288,6 +296,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Abre o modal com os detalhes do produto
     function showProductDetails(produto) {
+        currentOpenedProduct = produto;
+        if (modalQtyInput) modalQtyInput.value = 1;
         const displayTitle = getProductTitle(produto);
         const displayDescription = produto.nome ? (produto.descricao || '') : (parseProductText(produto.descricao).details || produto.descricao || '');
         const fallbackSrc = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 24 24" fill="none" stroke="%23cbd5e1" stroke-width="1" style="background:%23f8fafc"><rect width="24" height="24" rx="2"/></svg>';
@@ -426,4 +436,94 @@ document.addEventListener('DOMContentLoaded', async () => {
             closeModal();
         }
     });
+
+    // --- LOGICA DE QUANTIDADE E ADICIONAR AO CARRINHO ---
+    if (btnDecQty && btnIncQty && modalQtyInput) {
+        btnDecQty.addEventListener('click', () => {
+            let val = parseInt(modalQtyInput.value) || 1;
+            if (val > 1) {
+                modalQtyInput.value = val - 1;
+            }
+        });
+
+        btnIncQty.addEventListener('click', () => {
+            let val = parseInt(modalQtyInput.value) || 1;
+            modalQtyInput.value = val + 1;
+        });
+    }
+
+    if (btnAddToCart) {
+        btnAddToCart.addEventListener('click', () => {
+            if (!currentOpenedProduct) return;
+            const qty = parseInt(modalQtyInput.value) || 1;
+            addToCart(currentOpenedProduct, qty);
+        });
+    }
+
+    function addToCart(produto, quantidade) {
+        let cart = [];
+        try {
+            cart = JSON.parse(localStorage.getItem('samantha_cart')) || [];
+        } catch (e) {
+            cart = [];
+        }
+
+        // Verifica se o produto já existe no carrinho
+        const existingIdx = cart.findIndex(item => String(item.id) === String(produto.id));
+        if (existingIdx !== -1) {
+            cart[existingIdx].quantidade += quantidade;
+        } else {
+            // Salvar apenas os dados essenciais para o carrinho, NUNCA a imagem Base64 inteira
+            cart.push({
+                id: produto.id,
+                nome: produto.nome || '',
+                preco: produto.preco || 0,
+                codigo: produto.codigo || '',
+                referencia: produto.referencia || '',
+                quantidade: quantidade
+            });
+        }
+
+        localStorage.setItem('samantha_cart', JSON.stringify(cart));
+        updateCartBadge();
+        
+        // Efeito visual no botão e fechar modal
+        btnAddToCart.style.backgroundColor = '#10b981'; // Cor verde de sucesso
+        btnAddToCart.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Adicionado!
+        `;
+
+        setTimeout(() => {
+            btnAddToCart.style.backgroundColor = ''; // Restaura
+            btnAddToCart.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+                Adicionar ao Carrinho
+            `;
+            closeModal();
+        }, 800);
+    }
+
+    function updateCartBadge() {
+        if (!cartBadgeCount) return;
+        let cart = [];
+        try {
+            cart = JSON.parse(localStorage.getItem('samantha_cart')) || [];
+        } catch (e) {
+            cart = [];
+        }
+        
+        const totalItems = cart.reduce((acc, item) => acc + (parseInt(item.quantidade) || 0), 0);
+        cartBadgeCount.textContent = totalItems;
+        
+        // Oculta badge se carrinho estiver vazio
+        if (totalItems > 0) {
+            cartBadgeCount.style.display = 'flex';
+        } else {
+            cartBadgeCount.style.display = 'none';
+        }
+    }
+
+    // Inicializa contador do carrinho
+    updateCartBadge();
 });
