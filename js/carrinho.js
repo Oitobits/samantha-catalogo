@@ -11,6 +11,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const checkoutForm = document.getElementById('checkoutForm');
     const clientNameInput = document.getElementById('clientName');
     const clientPhoneInput = document.getElementById('clientPhone');
+    const successBlock = document.getElementById('successBlock');
+    const btnDownloadAgain = document.getElementById('btnDownloadAgain');
+    const btnClearCartSuccess = document.getElementById('btnClearCartSuccess');
 
     // Referências do PDF Template
     const pdfTemplate = document.getElementById('pdfTemplate');
@@ -165,6 +168,63 @@ document.addEventListener('DOMContentLoaded', async () => {
         summaryTotalPrice.textContent = `R$ ${totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
 
+    // Função auxiliar para gerar e baixar o PDF
+    async function generatePDF() {
+        const nome = clientNameInput.value.trim();
+        const telefone = clientPhoneInput.value.trim();
+
+        // Preenche o template de PDF
+        pdfClientName.textContent = nome;
+        pdfClientPhone.textContent = telefone;
+        pdfDate.textContent = new Date().toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        pdfItemsBody.innerHTML = '';
+        let totalGeral = 0;
+
+        cart.forEach(item => {
+            const sub = item.preco * item.quantidade;
+            totalGeral += sub;
+
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid #f1f5f9';
+            tr.innerHTML = `
+                <td style="padding: 0.75rem 0.5rem; font-size: 0.9rem; color: #475569;">
+                    ${item.codigo || '-'}<br>
+                    <span style="font-size: 0.75rem; color: #94a3b8;">REF: ${item.referencia || '-'}</span>
+                </td>
+                <td style="padding: 0.75rem 0.5rem; font-size: 0.95rem; font-weight: 500; color: #1e293b;">${item.nome}</td>
+                <td style="padding: 0.75rem 0.5rem; font-size: 0.95rem; text-align: right; color: #1e293b; font-weight: bold;">${item.quantidade}</td>
+                <td style="padding: 0.75rem 0.5rem; font-size: 0.95rem; text-align: right; color: #475569;">
+                    R$ ${item.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </td>
+                <td style="padding: 0.75rem 0.5rem; font-size: 0.95rem; text-align: right; color: #1e293b; font-weight: bold;">
+                    R$ ${sub.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </td>
+            `;
+            pdfItemsBody.appendChild(tr);
+        });
+
+        const formattedTotal = `R$ ${totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+        pdfSubtotal.textContent = formattedTotal;
+        pdfTotal.textContent = formattedTotal;
+
+        const options = {
+            margin: 0.5,
+            filename: `pedido-samantha-${nome.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+        };
+
+        await html2pdf().set(options).from(pdfTemplate).save();
+    }
+
     // Fechamento de Pedido
     checkoutForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -177,76 +237,50 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        // Exibir overlay de carregamento
         const submitBtn = checkoutForm.querySelector('button[type="submit"]');
         const origBtnHtml = submitBtn.innerHTML;
         submitBtn.disabled = true;
         submitBtn.innerHTML = `Gerando seu PDF...`;
 
         try {
-            // Preenche o template de PDF invisível
-            pdfClientName.textContent = nome;
-            pdfClientPhone.textContent = telefone;
-            pdfDate.textContent = new Date().toLocaleDateString('pt-BR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-
-            pdfItemsBody.innerHTML = '';
-            let totalGeral = 0;
-
-            cart.forEach(item => {
-                const sub = item.preco * item.quantidade;
-                totalGeral += sub;
-
-                const tr = document.createElement('tr');
-                tr.style.borderBottom = '1px solid #f1f5f9';
-                tr.innerHTML = `
-                    <td style="padding: 0.75rem 0.5rem; font-size: 0.9rem; color: #475569;">
-                        ${item.codigo || '-'}<br>
-                        <span style="font-size: 0.75rem; color: #94a3b8;">REF: ${item.referencia || '-'}</span>
-                    </td>
-                    <td style="padding: 0.75rem 0.5rem; font-size: 0.95rem; font-weight: 500; color: #1e293b;">${item.nome}</td>
-                    <td style="padding: 0.75rem 0.5rem; font-size: 0.95rem; text-align: right; color: #1e293b; font-weight: bold;">${item.quantidade}</td>
-                    <td style="padding: 0.75rem 0.5rem; font-size: 0.95rem; text-align: right; color: #475569;">
-                        R$ ${item.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td style="padding: 0.75rem 0.5rem; font-size: 0.95rem; text-align: right; color: #1e293b; font-weight: bold;">
-                        R$ ${sub.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </td>
-                `;
-                pdfItemsBody.appendChild(tr);
-            });
-
-            const formattedTotal = `R$ ${totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-            pdfSubtotal.textContent = formattedTotal;
-            pdfTotal.textContent = formattedTotal;
-
-            // Opções do PDF
-            const options = {
-                margin: 0.5,
-                filename: `pedido-samantha-${nome.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true },
-                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-            };
-
-            // Executa html2pdf e faz o download
-            await html2pdf().set(options).from(pdfTemplate).save();
-
-            // Zera o carrinho e volta
-            localStorage.removeItem('samantha_cart');
-            alert('Pedido finalizado com sucesso! Seu PDF está sendo baixado.');
-            window.location.href = 'index.html';
-
+            await generatePDF();
+            
+            // Sucesso! Oculta formulário e exibe o bloco de opções de sucesso
+            checkoutForm.style.display = 'none';
+            if (successBlock) successBlock.style.display = 'block';
         } catch (err) {
             console.error('Erro ao gerar o PDF:', err);
             alert('Ocorreu um erro ao gerar o seu pedido em PDF. Por favor, tente novamente.');
+        } finally {
             submitBtn.disabled = false;
             submitBtn.innerHTML = origBtnHtml;
         }
     });
+
+    // Baixar novamente
+    if (btnDownloadAgain) {
+        btnDownloadAgain.addEventListener('click', async () => {
+            btnDownloadAgain.disabled = true;
+            const origText = btnDownloadAgain.textContent;
+            btnDownloadAgain.textContent = 'Gerando...';
+            try {
+                await generatePDF();
+            } catch (err) {
+                console.error('Erro ao gerar o PDF novamente:', err);
+                alert('Erro ao gerar o PDF novamente.');
+            } finally {
+                btnDownloadAgain.disabled = false;
+                btnDownloadAgain.textContent = origText;
+            }
+        });
+    }
+
+    // Limpar carrinho e voltar
+    if (btnClearCartSuccess) {
+        btnClearCartSuccess.addEventListener('click', () => {
+            localStorage.removeItem('samantha_cart');
+            alert('Carrinho limpo! Redirecionando para a vitrine.');
+            window.location.href = 'index.html';
+        });
+    }
 });
