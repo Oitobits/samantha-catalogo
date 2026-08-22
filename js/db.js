@@ -69,11 +69,15 @@ function openIndexedDB() {
 // FUNÇÕES DE CRUD GENERALIZADAS
 // ==========================================
 
-// Obter todos os produtos
-async function getAllProducts() {
+// Obter todos os produtos (com limite opcional para carregamento rápido)
+async function getAllProducts(limitVal = null) {
     if (isFirebase) {
         try {
-            const snapshot = await dbFirestore.collection('produtos').get();
+            let query = dbFirestore.collection('produtos');
+            if (limitVal) {
+                query = query.limit(limitVal);
+            }
+            const snapshot = await query.get();
             const list = [];
             snapshot.forEach(doc => {
                 list.push({ id: doc.id, ...doc.data() });
@@ -89,7 +93,13 @@ async function getAllProducts() {
             const transaction = db.transaction(STORE_NAME, 'readonly');
             const store = transaction.objectStore(STORE_NAME);
             const request = store.getAll();
-            request.onsuccess = () => resolve(request.result);
+            request.onsuccess = () => {
+                let res = request.result;
+                if (limitVal) {
+                    res = res.slice(0, limitVal);
+                }
+                resolve(res);
+            };
             request.onerror = () => reject(request.error);
         });
     }

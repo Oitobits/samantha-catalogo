@@ -263,9 +263,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --- CARREGAR PRODUTOS NA TABELA ---
     async function loadProductsList() {
-        allProducts = await getAllProducts();
-        currentPage = 1;
-        renderAdminProducts();
+        try {
+            // 1. Carregamento ultra rápido dos primeiros 30 produtos para exibição imediata
+            allProducts = await getAllProducts(30);
+            currentPage = 1;
+            renderAdminProducts();
+            
+            // 2. Carrega a lista completa em segundo plano sem travar a interface
+            loadRemainingProductsInBackground();
+        } catch (err) {
+            console.error('Erro no carregamento rápido de produtos:', err);
+        }
+    }
+
+    async function loadRemainingProductsInBackground() {
+        try {
+            const fullList = await getAllProducts();
+            allProducts = fullList;
+            renderAdminProducts();
+        } catch (err) {
+            console.error('Erro no carregamento em segundo plano:', err);
+        }
     }
 
     function renderAdminProducts() {

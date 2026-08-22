@@ -42,7 +42,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Carrega dados da base de dados local
     async function loadCatalog() {
-        allProducts = await getAllProducts();
+        try {
+            // 1. Carregamento ultra rápido dos primeiros 32 produtos para exibição inicial imediata
+            allProducts = await getAllProducts(32);
+        } catch (err) {
+            console.error('Erro no carregamento inicial de produtos:', err);
+        }
+
         try {
             categories = await getAllCategories();
             categories.sort((a, b) => a.nome.localeCompare(b.nome));
@@ -52,6 +58,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         populateCategorySelect();
         applyFiltersAndSort();
+
+        // 2. Carrega o restante do catálogo em segundo plano
+        loadRemainingCatalogInBackground();
+    }
+
+    async function loadRemainingCatalogInBackground() {
+        try {
+            const fullList = await getAllProducts();
+            allProducts = fullList;
+            applyFiltersAndSort();
+        } catch (err) {
+            console.error('Erro no carregamento do catálogo em segundo plano:', err);
+        }
     }
 
     // Popula o select de categorias no filtro
