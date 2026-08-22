@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const searchInput = document.getElementById('searchInput');
     const sortSelect = document.getElementById('sortSelect');
     const categorySelect = document.getElementById('categorySelect');
+    const btnLoadMore = document.getElementById('btnLoadMore');
     
     // Modal de Detalhes
     const detailsModal = document.getElementById('detailsModal');
@@ -23,6 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let allProducts = [];
     let filteredProducts = [];
     let categories = [];
+    let visibleCount = 16;
 
     // Inicialização da base de dados e carregamento dos produtos
     try {
@@ -145,6 +147,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         filteredProducts = result;
+        visibleCount = 16;
         renderProducts();
     }
 
@@ -160,10 +163,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <p>Tente alterar os termos da busca ou ajustar a ordenação.</p>
                 </div>
             `;
+            if (btnLoadMore) btnLoadMore.style.display = 'none';
             return;
         }
 
-        filteredProducts.forEach(produto => {
+        const itemsToShow = filteredProducts.slice(0, visibleCount);
+
+        itemsToShow.forEach(produto => {
             const displayTitle = getProductTitle(produto);
             
             const card = document.createElement('div');
@@ -195,6 +201,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             productsContainer.appendChild(card);
         });
+
+        // Gerencia exibição do botão "Carregar Mais"
+        if (btnLoadMore) {
+            if (filteredProducts.length > visibleCount) {
+                btnLoadMore.style.display = 'flex';
+            } else {
+                btnLoadMore.style.display = 'none';
+            }
+        }
     }
 
     // Abre o modal com os detalhes do produto
@@ -238,6 +253,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     sortSelect.addEventListener('change', applyFiltersAndSort);
     categorySelect.addEventListener('change', applyFiltersAndSort);
     closeModalBtn.addEventListener('click', closeModal);
+
+    // Evento do botão Carregar Mais e Rolagem Infinita
+    function loadMoreProducts() {
+        visibleCount += 16;
+        renderProducts();
+    }
+
+    if (btnLoadMore) {
+        btnLoadMore.addEventListener('click', loadMoreProducts);
+        
+        // IntersectionObserver para rolagem infinita automática
+        try {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting && filteredProducts.length > visibleCount) {
+                        loadMoreProducts();
+                    }
+                });
+            }, {
+                rootMargin: '200px' // Carrega 200px antes de entrar na tela
+            });
+            observer.observe(btnLoadMore);
+        } catch (e) {
+            console.warn('IntersectionObserver não suportado:', e);
+        }
+    }
 
     // Fechar ao clicar fora do conteúdo do modal
     detailsModal.addEventListener('click', (e) => {
