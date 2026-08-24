@@ -447,10 +447,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         const descricao = prodDescription.value.trim();
         const status = prodStatus.checked ? 'ativo' : 'inativo';
 
+        // Combina a categoria selecionada no dropdown (principal) com os chips (adicionais)
+        const primaryCat = prodCategory.value;
+        const allSelCats = [];
+        if (primaryCat) {
+            allSelCats.push(primaryCat);
+        }
+        selectedProductCategories.forEach(cat => {
+            if (cat && !allSelCats.includes(cat)) {
+                allSelCats.push(cat);
+            }
+        });
+
         const produtoData = {
             nome,
-            categoriaId: selectedProductCategories[0] || '',
-            categoriasIds: selectedProductCategories,
+            categoriaId: primaryCat || selectedProductCategories[0] || '',
+            categoriasIds: allSelCats,
             codigo,
             referencia,
             preco,
@@ -504,15 +516,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (produto) {
                 prodId.value = produto.id;
                 prodName.value = produto.nome || '';
-                prodCategory.value = ''; // Limpa o select para nova adição
                 prodCode.value = produto.codigo || '';
                 prodRef.value = produto.referencia || '';
                 prodPrice.value = produto.preco || '';
                 prodDescription.value = produto.descricao || '';
                 prodStatus.checked = produto.status === 'ativo';
 
-                // Carrega categorias vinculadas
-                selectedProductCategories = produto.categoriasIds || (produto.categoriaId ? [produto.categoriaId] : []);
+                // Carrega categoria principal no dropdown
+                const mainCategory = produto.categoriaId || '';
+                prodCategory.value = mainCategory;
+
+                // Carrega categorias adicionais nos chips, filtrando fora a principal para não duplicar na visualização
+                const allCats = produto.categoriasIds || (produto.categoriaId ? [produto.categoriaId] : []);
+                selectedProductCategories = allCats.filter(catId => String(catId) !== String(mainCategory));
                 renderProductCategoriesChips();
 
                 // Carrega imagens vinculadas
