@@ -50,6 +50,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnPrevPage = document.getElementById('btnPrevPage');
     const btnNextPage = document.getElementById('btnNextPage');
     const paginationInfo = document.getElementById('paginationInfo');
+    const inputGoToPage = document.getElementById('inputGoToPage');
+    const btnGoToPage = document.getElementById('btnGoToPage');
 
     // Estado do produto sob edição
     let selectedProductCategories = []; // IDs de categorias selecionadas
@@ -335,6 +337,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             paginationInfo.textContent = "Exibindo 0-0 de 0 produtos";
             btnPrevPage.disabled = true;
             btnNextPage.disabled = true;
+            if (inputGoToPage) {
+                inputGoToPage.value = 1;
+                inputGoToPage.max = 1;
+            }
             return;
         }
 
@@ -342,6 +348,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         paginationInfo.textContent = `Exibindo ${startIndex + 1}-${endIndex} de ${totalItems} produtos | Página ${currentPage}/${totalPages}`;
         btnPrevPage.disabled = currentPage === 1;
         btnNextPage.disabled = currentPage === totalPages;
+        if (inputGoToPage) {
+            inputGoToPage.value = currentPage;
+            inputGoToPage.max = totalPages;
+        }
 
         pageItems.forEach(produto => {
             const tr = document.createElement('tr');
@@ -638,6 +648,44 @@ document.addEventListener('DOMContentLoaded', async () => {
             renderAdminProducts();
         }
     });
+
+    // Evento de ir para página específica
+    function jumpToSelectedPage() {
+        const query = adminSearchInput.value.toLowerCase().trim();
+        let filteredCount = allProducts.length;
+        if (query) {
+            filteredCount = allProducts.filter(p => 
+                (p.nome && p.nome.toLowerCase().includes(query)) ||
+                (p.codigo && p.codigo.toLowerCase().includes(query)) ||
+                (p.referencia && p.referencia.toLowerCase().includes(query)) ||
+                (p.descricao && p.descricao.toLowerCase().includes(query))
+            ).length;
+        }
+        const totalPages = Math.ceil(filteredCount / itemsPerPage) || 1;
+        
+        let targetPage = parseInt(inputGoToPage.value);
+        if (isNaN(targetPage) || targetPage < 1) {
+            targetPage = 1;
+        } else if (targetPage > totalPages) {
+            targetPage = totalPages;
+        }
+        
+        currentPage = targetPage;
+        renderAdminProducts();
+    }
+
+    if (btnGoToPage) {
+        btnGoToPage.addEventListener('click', jumpToSelectedPage);
+    }
+
+    if (inputGoToPage) {
+        inputGoToPage.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                jumpToSelectedPage();
+            }
+        });
+    }
 
     // ==========================================
     // LÓGICA E EVENTOS DE CATEGORIAS

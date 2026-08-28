@@ -217,11 +217,18 @@
                 </div>
 
                 <!-- Paginação da Tabela de Produtos -->
-                <div class="pagination-container" style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding: 0.5rem 1rem; background-color: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-md);">
+                <div class="pagination-container" style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding: 0.5rem 1rem; background-color: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-md); flex-wrap: wrap; gap: 1rem;">
                     <span id="paginationInfo" style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">Exibindo 0-0 de 0 produtos</span>
-                    <div style="display: flex; gap: 0.5rem;">
-                        <button id="btnPrevPage" class="btn btn-secondary btn-sm" style="padding: 0.4rem 0.75rem;">Anterior</button>
-                        <button id="btnNextPage" class="btn btn-secondary btn-sm" style="padding: 0.4rem 0.75rem;">Próxima</button>
+                    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; color: var(--text-muted);">
+                            <span>Página:</span>
+                            <input type="number" id="inputGoToPage" min="1" value="1" style="width: 55px; height: 30px; text-align: center; border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none; font-weight: bold; background-color: var(--body-bg); color: var(--text-main);">
+                            <button id="btnGoToPage" class="btn btn-secondary btn-sm" style="height: 30px; padding: 0 0.5rem; display: flex; align-items: center;">Ir</button>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button id="btnPrevPage" class="btn btn-secondary btn-sm" style="padding: 0.4rem 0.75rem;">Anterior</button>
+                            <button id="btnNextPage" class="btn btn-secondary btn-sm" style="padding: 0.4rem 0.75rem;">Próxima</button>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -280,7 +287,7 @@
 
     <!-- Configurações e Scripts do Sistema -->
     <script src="js/config.js"></script>
-    <script src="js/db.js?v=9"></script>
-    <script src="js/admin.js?v=9"></script>
+    <script src="js/db.js?v=10"></script>
+    <script src="js/admin.js?v=10"></script>
 </body>
 </html>
