@@ -268,35 +268,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             // 1. Busca instantânea do cache local IndexedDB (menos de 0.05s)
             const cached = await getCachedProducts();
-            if (cached && cached.length > 0) {
+            if (cached && cached.length >= 500) {
                 allProducts = cached;
                 currentPage = 1;
                 renderAdminProducts();
                 console.log(`⚡ Painel carregado instantaneamente do cache: ${cached.length} produtos.`);
             } else {
-                // Primeiro acesso no navegador: carrega os primeiros 30 para visualização imediata
+                // Se cache ainda incompleto, carrega os primeiros 30 para exibição imediata
                 allProducts = await getAllProducts(30);
                 currentPage = 1;
                 renderAdminProducts();
             }
             
-            // 2. Sincronização inteligente em segundo plano
-            loadRemainingProductsInBackground(cached && cached.length > 0);
+            // 2. Sincronização do catálogo completo em segundo plano
+            loadRemainingProductsInBackground(cached && cached.length >= 500);
         } catch (err) {
             console.error('Erro no carregamento rápido de produtos:', err);
         }
     }
 
-    async function loadRemainingProductsInBackground(hasCache = false) {
+    async function loadRemainingProductsInBackground(hasFullCache = false) {
         try {
             const fullList = await syncProductsCache((count) => {
-                if (!hasCache && count > 0) {
-                    paginationInfo.textContent = `Sincronizando catálogo: ${count} produtos carregados...`;
+                if (!hasFullCache && count > 0) {
+                    paginationInfo.textContent = `Sincronizando catálogo completo: ${count} produtos...`;
                 }
             });
             if (fullList && fullList.length > 0) {
                 allProducts = fullList;
                 renderAdminProducts();
+                console.log(`✅ Catálogo completo carregado no painel: ${allProducts.length} produtos.`);
             }
         } catch (err) {
             console.error('Erro na sincronização em segundo plano:', err);

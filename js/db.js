@@ -154,7 +154,7 @@ async function removeProductFromCache(id) {
     }
 }
 
-// Sincronização inteligente com a nuvem (streaming em lotes de 100 itens)
+// Sincronização inteligente com a nuvem (baixa o catálogo completo para o cache local)
 async function syncProductsCache(onProgress = null, forceFull = false) {
     if (!isFirebase) {
         return await getCachedProducts();
@@ -163,9 +163,9 @@ async function syncProductsCache(onProgress = null, forceFull = false) {
     try {
         const cached = await getCachedProducts();
         
-        // Se já temos cache e NÃO for forçado completo:
-        // Busca rápida dos 100 itens mais recentes para pegar novidades/edições
-        if (cached.length > 0 && !forceFull) {
+        // Se já temos um catálogo expressivo em cache (mais de 500 itens) e NÃO foi forçado completo:
+        // Faz uma verificação rápida dos mais recentes
+        if (cached.length >= 500 && !forceFull) {
             try {
                 let quickQuery = dbFirestore.collection('produtos').limit(100);
                 const quickSnap = await quickQuery.get();
@@ -180,7 +180,6 @@ async function syncProductsCache(onProgress = null, forceFull = false) {
                         recentItems.push(item);
                     });
                     
-                    // Atualiza os recentes no cache IndexedDB
                     await saveProductsToCache(recentItems);
                     const merged = Array.from(map.values());
                     return merged;
@@ -192,46 +191,20 @@ async function syncProductsCache(onProgress = null, forceFull = false) {
             return cached;
         }
 
-        // Se cache está vazio ou foi solicitada sincronização completa:
-        // Faz streaming paginado em lotes de 100 documentos
-        console.log('🔄 Iniciando sincronização por lotes do Firestore...');
-        let all = [];
-        let lastDoc = null;
-        let hasMore = true;
-        const BATCH_SIZE = 100;
-
-        while (hasMore) {
-            let query = dbFirestore.collection('produtos').limit(BATCH_SIZE);
-            if (lastDoc) {
-                query = query.startAfter(lastDoc);
-            }
-            const snapshot = await query.get();
-            if (snapshot.empty) {
-                hasMore = false;
-                break;
-            }
-
-            const batch = [];
-            snapshot.forEach(doc => {
-                const item = { id: doc.id, ...doc.data() };
-                all.push(item);
-                batch.push(item);
-            });
-
-            // Salva o lote no cache imediatamente
-            await saveProductsToCache(batch);
-
-            if (onProgress) {
-                onProgress(all.length);
-            }
-
-            lastDoc = snapshot.docs[snapshot.docs.length - 1];
-            if (snapshot.docs.length < BATCH_SIZE) {
-                hasMore = false;
-            }
+        // Caso o cache ainda não esteja completo (ex: primeiro acesso ou menos de 500 itens):
+        // Baixa TODOS os produtos do Firestore
+        console.log('🔄 Baixando catálogo completo do Firestore para o cache local...');
+        const snapshot = await dbFirestore.collection('produtos').get();
+        const all = [];
+        snapshot.forEach(doc => {
+            all.push({ id: doc.id, ...doc.data() });
+        });
+        
+        console.log(`✅ Catálogo completo recebido: ${all.length} produtos. Gravando no cache local...`);
+        await saveProductsToCache(all);
+        if (onProgress) {
+            onProgress(all.length);
         }
-
-        console.log(`✅ Sincronização concluída: ${all.length} produtos armazenados no cache local.`);
         return all;
     } catch (err) {
         console.error('Erro na sincronização de produtos:', err);
@@ -258,8 +231,8 @@ async function getAllProducts(limitVal = null) {
             snapshot.forEach(doc => {
                 list.push({ id: doc.id, ...doc.data() });
             });
-            // Atualiza cache em segundo plano com os itens obtidos
-            if (list.length > 0) {
+            // Só salva no cache se for a lista completa sem limite
+            if (!limitVal && list.length > 0) {
                 saveProductsToCache(list);
             }
             return list;

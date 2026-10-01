@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             // 1. Tenta carregar do cache local IndexedDB primeiro (~0.05s)
             const cached = await getCachedProducts();
-            if (cached && cached.length > 0) {
+            if (cached && cached.length >= 500) {
                 allProducts = cached;
                 hasCache = true;
                 console.log(`⚡ Vitrine carregada do cache local: ${cached.length} produtos.`);
