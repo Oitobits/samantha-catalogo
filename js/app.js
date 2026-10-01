@@ -48,11 +48,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
     }
 
-    // Carrega dados da base de dados local
+    // Carrega dados do catálogo com cache acelerado
     async function loadCatalog() {
+        let hasCache = false;
         try {
-            // 1. Carregamento ultra rápido dos primeiros 32 produtos para exibição inicial imediata
-            allProducts = await getAllProducts(32);
+            // 1. Tenta carregar do cache local IndexedDB primeiro (~0.05s)
+            const cached = await getCachedProducts();
+            if (cached && cached.length > 0) {
+                allProducts = cached;
+                hasCache = true;
+                console.log(`⚡ Vitrine carregada do cache local: ${cached.length} produtos.`);
+            } else {
+                // Primeiro acesso: carrega os primeiros 32 produtos para exibição inicial imediata
+                allProducts = await getAllProducts(32);
+            }
         } catch (err) {
             console.error('Erro no carregamento inicial de produtos:', err);
         }
@@ -67,17 +76,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         populateCategorySelect();
         applyFiltersAndSort();
 
-        // 2. Carrega o restante do catálogo em segundo plano
-        loadRemainingCatalogInBackground();
+        // 2. Sincroniza em segundo plano de forma suave
+        loadRemainingCatalogInBackground(hasCache);
     }
 
-    async function loadRemainingCatalogInBackground() {
+    async function loadRemainingCatalogInBackground(hasCache = false) {
         try {
-            const fullList = await getAllProducts();
-            allProducts = fullList;
-            applyFiltersAndSort();
+            const fullList = await syncProductsCache();
+            if (fullList && fullList.length > 0) {
+                allProducts = fullList;
+                applyFiltersAndSort();
+            }
         } catch (err) {
-            console.error('Erro no carregamento do catálogo em segundo plano:', err);
+            console.error('Erro na sincronização da vitrine em segundo plano:', err);
         }
     }
 

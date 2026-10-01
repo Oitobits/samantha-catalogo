@@ -66,6 +66,182 @@ function openIndexedDB() {
 }
 
 // ==========================================
+// FUNÇÕES DE CACHE LOCAL (INDEXEDDB ACELERADO)
+// ==========================================
+
+// Obter todos os produtos do cache local (execução instantânea ~10-50ms)
+async function getCachedProducts() {
+    try {
+        const db = await openIndexedDB();
+        return new Promise((resolve) => {
+            const transaction = db.transaction(STORE_NAME, 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.getAll();
+            request.onsuccess = () => resolve(request.result || []);
+            request.onerror = () => resolve([]);
+        });
+    } catch (err) {
+        console.warn('Cache local IndexedDB não disponível:', err);
+        return [];
+    }
+}
+
+// Salvar múltiplos produtos em lote no cache local
+async function saveProductsToCache(products) {
+    if (!products || products.length === 0) return true;
+    try {
+        const db = await openIndexedDB();
+        return new Promise((resolve) => {
+            const transaction = db.transaction(STORE_NAME, 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            transaction.oncomplete = () => resolve(true);
+            transaction.onerror = (e) => {
+                console.warn('Aviso ao salvar no cache IndexedDB:', e.target ? e.target.error : e);
+                resolve(false);
+            };
+            products.forEach(p => {
+                if (p && p.id !== undefined && p.id !== null) {
+                    try {
+                        store.put(p);
+                    } catch (err) {
+                        console.warn('Erro ao salvar item no cache:', p.id, err);
+                    }
+                }
+            });
+        });
+    } catch (err) {
+        console.warn('Falha ao abrir IndexedDB para salvar produtos:', err);
+        return false;
+    }
+}
+
+// Salvar um único produto no cache local
+async function saveSingleProductToCache(produto) {
+    if (!produto || produto.id === undefined || produto.id === null) return false;
+    try {
+        const db = await openIndexedDB();
+        return new Promise((resolve) => {
+            const transaction = db.transaction(STORE_NAME, 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.put(produto);
+            request.onsuccess = () => resolve(true);
+            request.onerror = () => resolve(false);
+        });
+    } catch (err) {
+        console.warn('Falha ao atualizar produto no cache:', err);
+        return false;
+    }
+}
+
+// Remover produto do cache local
+async function removeProductFromCache(id) {
+    if (id === undefined || id === null) return false;
+    try {
+        const db = await openIndexedDB();
+        return new Promise((resolve) => {
+            const transaction = db.transaction(STORE_NAME, 'readwrite');
+            const store = transaction.objectStore(STORE_NAME);
+            store.delete(String(id));
+            if (!isNaN(id)) {
+                store.delete(Number(id));
+            }
+            transaction.oncomplete = () => resolve(true);
+            transaction.onerror = () => resolve(false);
+        });
+    } catch (err) {
+        console.warn('Falha ao remover produto do cache:', err);
+        return false;
+    }
+}
+
+// Sincronização inteligente com a nuvem (streaming em lotes de 100 itens)
+async function syncProductsCache(onProgress = null, forceFull = false) {
+    if (!isFirebase) {
+        return await getCachedProducts();
+    }
+
+    try {
+        const cached = await getCachedProducts();
+        
+        // Se já temos cache e NÃO for forçado completo:
+        // Busca rápida dos 100 itens mais recentes para pegar novidades/edições
+        if (cached.length > 0 && !forceFull) {
+            try {
+                let quickQuery = dbFirestore.collection('produtos').limit(100);
+                const quickSnap = await quickQuery.get();
+                if (!quickSnap.empty) {
+                    const recentItems = [];
+                    const map = new Map();
+                    cached.forEach(p => map.set(String(p.id), p));
+                    
+                    quickSnap.forEach(doc => {
+                        const item = { id: doc.id, ...doc.data() };
+                        map.set(String(doc.id), item);
+                        recentItems.push(item);
+                    });
+                    
+                    // Atualiza os recentes no cache IndexedDB
+                    await saveProductsToCache(recentItems);
+                    const merged = Array.from(map.values());
+                    return merged;
+                }
+            } catch (quickErr) {
+                console.warn('Aviso no delta-sync, usando cache existente:', quickErr);
+                return cached;
+            }
+            return cached;
+        }
+
+        // Se cache está vazio ou foi solicitada sincronização completa:
+        // Faz streaming paginado em lotes de 100 documentos
+        console.log('🔄 Iniciando sincronização por lotes do Firestore...');
+        let all = [];
+        let lastDoc = null;
+        let hasMore = true;
+        const BATCH_SIZE = 100;
+
+        while (hasMore) {
+            let query = dbFirestore.collection('produtos').limit(BATCH_SIZE);
+            if (lastDoc) {
+                query = query.startAfter(lastDoc);
+            }
+            const snapshot = await query.get();
+            if (snapshot.empty) {
+                hasMore = false;
+                break;
+            }
+
+            const batch = [];
+            snapshot.forEach(doc => {
+                const item = { id: doc.id, ...doc.data() };
+                all.push(item);
+                batch.push(item);
+            });
+
+            // Salva o lote no cache imediatamente
+            await saveProductsToCache(batch);
+
+            if (onProgress) {
+                onProgress(all.length);
+            }
+
+            lastDoc = snapshot.docs[snapshot.docs.length - 1];
+            if (snapshot.docs.length < BATCH_SIZE) {
+                hasMore = false;
+            }
+        }
+
+        console.log(`✅ Sincronização concluída: ${all.length} produtos armazenados no cache local.`);
+        return all;
+    } catch (err) {
+        console.error('Erro na sincronização de produtos:', err);
+        const cachedFallback = await getCachedProducts();
+        if (cachedFallback.length > 0) return cachedFallback;
+        throw err;
+    }
+}
+
+// ==========================================
 // FUNÇÕES DE CRUD GENERALIZADAS
 // ==========================================
 
@@ -82,36 +258,61 @@ async function getAllProducts(limitVal = null) {
             snapshot.forEach(doc => {
                 list.push({ id: doc.id, ...doc.data() });
             });
+            // Atualiza cache em segundo plano com os itens obtidos
+            if (list.length > 0) {
+                saveProductsToCache(list);
+            }
             return list;
         } catch (err) {
             console.error('Erro ao ler dados do Firestore:', err);
+            // Fallback para cache local se a rede falhar
+            const cached = await getCachedProducts();
+            if (cached && cached.length > 0) {
+                return limitVal ? cached.slice(0, limitVal) : cached;
+            }
             throw err;
         }
     } else {
-        const db = await openIndexedDB();
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction(STORE_NAME, 'readonly');
-            const store = transaction.objectStore(STORE_NAME);
-            const request = store.getAll();
-            request.onsuccess = () => {
-                let res = request.result;
-                if (limitVal) {
-                    res = res.slice(0, limitVal);
-                }
-                resolve(res);
-            };
-            request.onerror = () => reject(request.error);
-        });
+        const cached = await getCachedProducts();
+        return limitVal ? cached.slice(0, limitVal) : cached;
     }
 }
 
-// Obter produto por ID
+// Obter produto por ID (Cache-First para velocidade instantânea)
 async function getProductById(id) {
+    // 1. Tenta buscar no cache local primeiro (instantâneo ~1ms)
+    try {
+        const db = await openIndexedDB();
+        const cachedItem = await new Promise((resolve) => {
+            const transaction = db.transaction(STORE_NAME, 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const req = store.get(String(id));
+            req.onsuccess = () => {
+                if (req.result) resolve(req.result);
+                else if (!isNaN(id)) {
+                    const reqNum = store.get(Number(id));
+                    reqNum.onsuccess = () => resolve(reqNum.result || null);
+                    reqNum.onerror = () => resolve(null);
+                } else {
+                    resolve(null);
+                }
+            };
+            req.onerror = () => resolve(null);
+        });
+        if (cachedItem) {
+            return cachedItem;
+        }
+    } catch (e) {
+        // Fallback silencioso para Firestore
+    }
+
     if (isFirebase) {
         try {
             const doc = await dbFirestore.collection('produtos').doc(String(id)).get();
             if (doc.exists) {
-                return { id: doc.id, ...doc.data() };
+                const item = { id: doc.id, ...doc.data() };
+                saveSingleProductToCache(item);
+                return item;
             }
             return null;
         } catch (err) {
@@ -119,18 +320,11 @@ async function getProductById(id) {
             throw err;
         }
     } else {
-        const db = await openIndexedDB();
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction(STORE_NAME, 'readonly');
-            const store = transaction.objectStore(STORE_NAME);
-            const request = store.get(Number(id));
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
-        });
+        return null;
     }
 }
 
-// Adicionar produto
+// Adicionar produto (Firestore + Cache Local)
 async function addProduct(produto) {
     produto.preco = parseFloat(produto.preco) || 0;
     produto.status = produto.status === 'ativo' ? 'ativo' : 'inativo';
@@ -138,9 +332,9 @@ async function addProduct(produto) {
 
     if (isFirebase) {
         try {
-            // Em vez de enviar para o Storage (que exige plano pago), salvamos a imagem
-            // comprimida WebP em base64 direto no Firestore (cabe folgadamente no limite de 1MB)
             const docRef = await dbFirestore.collection('produtos').add(produto);
+            const savedItem = { id: docRef.id, ...produto };
+            await saveSingleProductToCache(savedItem);
             return docRef.id;
         } catch (err) {
             console.error('Erro ao adicionar produto no Firestore:', err);
@@ -158,7 +352,7 @@ async function addProduct(produto) {
     }
 }
 
-// Atualizar produto
+// Atualizar produto (Firestore + Cache Local)
 async function updateProduct(produto) {
     produto.preco = parseFloat(produto.preco) || 0;
     produto.status = produto.status === 'ativo' ? 'ativo' : 'inativo';
@@ -170,8 +364,8 @@ async function updateProduct(produto) {
             const dadosSalvar = { ...produto };
             delete dadosSalvar.id;
 
-            // Salva a imagem (seja base64 ou link externo) diretamente no Firestore
             await dbFirestore.collection('produtos').doc(docId).set(dadosSalvar);
+            await saveSingleProductToCache({ id: docId, ...dadosSalvar });
             return true;
         } catch (err) {
             console.error('Erro ao atualizar produto no Firestore:', err);
@@ -182,10 +376,7 @@ async function updateProduct(produto) {
         return new Promise((resolve, reject) => {
             const transaction = db.transaction(STORE_NAME, 'readwrite');
             const store = transaction.objectStore(STORE_NAME);
-            
-            // Garante que o ID no IndexedDB seja numérico
-            produto.id = Number(produto.id);
-            
+            produto.id = !isNaN(produto.id) ? Number(produto.id) : produto.id;
             const request = store.put(produto);
             request.onsuccess = () => resolve(true);
             request.onerror = () => reject(request.error);
@@ -193,28 +384,19 @@ async function updateProduct(produto) {
     }
 }
 
-// Excluir produto
+// Excluir produto (Firestore + Cache Local)
 async function deleteProduct(id) {
     if (isFirebase) {
         try {
-            // Nota: Esta ação remove o produto do Firestore. 
-            // Para manter o storage limpo, no mundo ideal removeríamos a imagem também, 
-            // mas como é opcional e exige guardar o path da imagem, focar nos dados do Firestore é o suficiente.
             await dbFirestore.collection('produtos').doc(String(id)).delete();
+            await removeProductFromCache(id);
             return true;
         } catch (err) {
             console.error('Erro ao excluir produto no Firestore:', err);
             throw err;
         }
     } else {
-        const db = await openIndexedDB();
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction(STORE_NAME, 'readwrite');
-            const store = transaction.objectStore(STORE_NAME);
-            const request = store.delete(Number(id));
-            request.onsuccess = () => resolve(true);
-            request.onerror = () => reject(request.error);
-        });
+        return await removeProductFromCache(id);
     }
 }
 

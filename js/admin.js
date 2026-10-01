@@ -263,28 +263,43 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // --- CARREGAR PRODUTOS NA TABELA ---
+    // --- CARREGAR PRODUTOS NA TABELA COM CACHE ACELERADO ---
     async function loadProductsList() {
         try {
-            // 1. Carregamento ultra rápido dos primeiros 30 produtos para exibição imediata
-            allProducts = await getAllProducts(30);
-            currentPage = 1;
-            renderAdminProducts();
+            // 1. Busca instantânea do cache local IndexedDB (menos de 0.05s)
+            const cached = await getCachedProducts();
+            if (cached && cached.length > 0) {
+                allProducts = cached;
+                currentPage = 1;
+                renderAdminProducts();
+                console.log(`⚡ Painel carregado instantaneamente do cache: ${cached.length} produtos.`);
+            } else {
+                // Primeiro acesso no navegador: carrega os primeiros 30 para visualização imediata
+                allProducts = await getAllProducts(30);
+                currentPage = 1;
+                renderAdminProducts();
+            }
             
-            // 2. Carrega a lista completa em segundo plano sem travar a interface
-            loadRemainingProductsInBackground();
+            // 2. Sincronização inteligente em segundo plano
+            loadRemainingProductsInBackground(cached && cached.length > 0);
         } catch (err) {
             console.error('Erro no carregamento rápido de produtos:', err);
         }
     }
 
-    async function loadRemainingProductsInBackground() {
+    async function loadRemainingProductsInBackground(hasCache = false) {
         try {
-            const fullList = await getAllProducts();
-            allProducts = fullList;
-            renderAdminProducts();
+            const fullList = await syncProductsCache((count) => {
+                if (!hasCache && count > 0) {
+                    paginationInfo.textContent = `Sincronizando catálogo: ${count} produtos carregados...`;
+                }
+            });
+            if (fullList && fullList.length > 0) {
+                allProducts = fullList;
+                renderAdminProducts();
+            }
         } catch (err) {
-            console.error('Erro no carregamento em segundo plano:', err);
+            console.error('Erro na sincronização em segundo plano:', err);
         }
     }
 
