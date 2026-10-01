@@ -73,7 +73,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     item.codigo = dbProduct.codigo || item.codigo;
                     item.referencia = dbProduct.referencia || item.referencia;
                     
-                    if (dbProduct.imagens && dbProduct.imagens.length > 0) {
+                    if (dbProduct.imagemThumb) {
+                        imageSrc = dbProduct.imagemThumb;
+                    } else if (dbProduct.imagens && dbProduct.imagens.length > 0) {
                         imageSrc = dbProduct.imagens[0];
                     } else if (dbProduct.imagem) {
                         imageSrc = dbProduct.imagem;

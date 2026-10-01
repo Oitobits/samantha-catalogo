@@ -56,6 +56,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Estado do produto sob edição
     let selectedProductCategories = []; // IDs de categorias selecionadas
     let currentImages = []; // URLs Base64 ou links externos de imagens
+    let currentThumbnails = []; // Miniaturas ultraleves (~300px) correspondentes
     let imageSourceType = 'upload'; // 'upload' ou 'link'
     let allProducts = [];
     let currentPage = 1;
@@ -175,9 +176,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const files = Array.from(e.target.files);
         for (const file of files) {
             try {
-                // Comprime a imagem para WebP 800x800 com qualidade 80%
+                // Comprime a imagem principal para WebP 800x800 com qualidade 75%
                 const base64Image = await compressImage(file);
+                // Gera miniatura ultraleve 300x300 com qualidade 65% para catálogo/tabela
+                const thumbImage = await generateThumbnail(file);
+
                 currentImages.push(base64Image);
+                currentThumbnails.push(thumbImage);
             } catch (err) {
                 console.error('Erro ao processar imagem:', err);
             }
@@ -187,10 +192,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Adicionar imagem via Link Externo
-    btnAddLink.addEventListener('click', () => {
+    btnAddLink.addEventListener('click', async () => {
         const url = prodLink.value.trim();
         if (url) {
             currentImages.push(url);
+            try {
+                const thumbImage = await generateThumbnailFromUrl(url);
+                currentThumbnails.push(thumbImage);
+            } catch (e) {
+                currentThumbnails.push(url);
+            }
             prodLink.value = '';
             renderImagesPreview();
         }
@@ -218,6 +229,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             wrapper.querySelector('.remove-image-thumb').addEventListener('click', (e) => {
                 const idx = parseInt(e.target.dataset.index);
                 currentImages.splice(idx, 1);
+                if (currentThumbnails.length > idx) {
+                    currentThumbnails.splice(idx, 1);
+                }
                 renderImagesPreview();
             });
             
@@ -373,7 +387,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tr = document.createElement('tr');
             
             const displayTitle = produto.nome || (parseProductText(produto.descricao).title);
-            const imgSrc = produto.imagem || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="%23cbd5e1" stroke-width="1"><rect width="24" height="24" rx="2"/></svg>';
+            const imgSrc = produto.imagemThumb || produto.imagem || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="%23cbd5e1" stroke-width="1"><rect width="24" height="24" rx="2"/></svg>';
             const isActive = produto.status === 'ativo';
             const cat = categories.find(c => String(c.id) === String(produto.categoriaId));
             const catNameText = cat ? cat.nome : 'Sem Categoria';
@@ -485,6 +499,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
+        // Determina miniatura: usa a gerada ou fallback a partir da imagem principal
+        let mainThumb = currentThumbnails[0] || '';
+        if (!mainThumb && currentImages[0]) {
+            try {
+                mainThumb = await generateThumbnailFromUrl(currentImages[0]);
+            } catch (err) {
+                mainThumb = currentImages[0];
+            }
+        }
+
         const produtoData = {
             nome,
             categoriaId: primaryCat || selectedProductCategories[0] || '',
@@ -495,7 +519,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             descricao,
             status,
             imagem: currentImages[0] || '',
-            imagens: currentImages
+            imagens: currentImages,
+            imagemThumb: mainThumb
         };
 
         try {
@@ -559,6 +584,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 // Carrega imagens vinculadas
                 currentImages = produto.imagens || (produto.imagem ? [produto.imagem] : []);
+                if (produto.imagemThumb) {
+                    currentThumbnails = [produto.imagemThumb];
+                } else if (currentImages.length > 0) {
+                    currentThumbnails = [currentImages[0]];
+                } else {
+                    currentThumbnails = [];
+                }
                 renderImagesPreview();
 
                 // Ajustar interface
@@ -615,6 +647,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Limpar estados locais
         selectedProductCategories = [];
         currentImages = [];
+        currentThumbnails = [];
         
         // Limpar prévias
         productCategoriesChips.innerHTML = '';

@@ -220,6 +220,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Tratamento da imagem (se não houver, usa um placeholder SVG)
             const fallbackSrc = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 24 24" fill="none" stroke="%23cbd5e1" stroke-width="1" style="background:%23f8fafc"><rect width="24" height="24" rx="2"/></svg>';
             const imgs = produto.imagens && produto.imagens.length > 0 ? produto.imagens : (produto.imagem ? [produto.imagem] : [fallbackSrc]);
+            const cardImgSrc = produto.imagemThumb || imgs[0];
             let currentImgIdx = 0;
             const hasMultipleImages = imgs.length > 1;
 
@@ -239,7 +240,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             card.innerHTML = `
                 <div class="product-image-container">
-                    <img class="card-product-img" src="${imgs[0]}" alt="${displayTitle}" loading="lazy">
+                    <img class="card-product-img" src="${cardImgSrc}" alt="${displayTitle}" loading="lazy">
                     ${arrowsHtml}
                     ${dotsHtml}
                 </div>

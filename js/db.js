@@ -377,8 +377,8 @@ async function deleteProduct(id) {
 // FUNÇÕES AUXILIARES E DADOS DEMO
 // ==========================================
 
-// Função para redimensionar e comprimir imagens para WebP
-function compressImage(file, maxWidth = 800, maxHeight = 800) {
+// Função para redimensionar e comprimir imagens para WebP (foto de detalhe)
+function compressImage(file, maxWidth = 800, maxHeight = 800, quality = 0.75) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -408,12 +408,57 @@ function compressImage(file, maxWidth = 800, maxHeight = 800) {
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
 
-                const compressedBase64 = canvas.toDataURL('image/webp', 0.8);
+                const compressedBase64 = canvas.toDataURL('image/webp', quality);
                 resolve(compressedBase64);
             };
             img.onerror = (err) => reject(err);
         };
         reader.onerror = (err) => reject(err);
+    });
+}
+
+// Função para gerar miniatura ultraleve (Thumbnail 300x300, ~10-15 KB)
+function generateThumbnail(file, maxSize = 300, quality = 0.65) {
+    return compressImage(file, maxSize, maxSize, quality);
+}
+
+// Gera miniatura a partir de uma URL ou Base64 já existente
+function generateThumbnailFromUrl(imageSrc, maxSize = 300, quality = 0.65) {
+    return new Promise((resolve) => {
+        if (!imageSrc) return resolve('');
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = imageSrc;
+        img.onload = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > maxSize) {
+                        height = Math.round((height * maxSize) / width);
+                        width = maxSize;
+                    }
+                } else {
+                    if (height > maxSize) {
+                        width = Math.round((width * maxSize) / height);
+                        height = maxSize;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                const thumbBase64 = canvas.toDataURL('image/webp', quality);
+                resolve(thumbBase64);
+            } catch (e) {
+                // Fallback seguro caso haja bloqueio de canvas
+                resolve(imageSrc);
+            }
+        };
+        img.onerror = () => resolve(imageSrc);
     });
 }
 
