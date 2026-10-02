@@ -181,8 +181,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Gera miniatura ultraleve 300x300 com qualidade 65% para catálogo/tabela
                 const thumbImage = await generateThumbnail(file);
 
-                currentImages.push(base64Image);
-                currentThumbnails.push(thumbImage);
+                // Se o Cloudflare R2 estiver configurado, envia diretamente para a nuvem
+                let finalImage = base64Image;
+                let finalThumb = thumbImage;
+
+                if (window.r2Storage) {
+                    try {
+                        const randomId = Math.random().toString(36).substring(2, 9);
+                        const r2MainUrl = await window.r2Storage.uploadImage(base64Image, `prod_upload_${Date.now()}_${randomId}.webp`);
+                        const r2ThumbUrl = await window.r2Storage.uploadImage(thumbImage, `thumb_upload_${Date.now()}_${randomId}.webp`);
+                        finalImage = r2MainUrl;
+                        finalThumb = r2ThumbUrl;
+                    } catch (r2Err) {
+                        console.warn('Falha no upload para o R2 (usando Base64 local como fallback seguro):', r2Err);
+                    }
+                }
+
+                currentImages.push(finalImage);
+                currentThumbnails.push(finalThumb);
             } catch (err) {
                 console.error('Erro ao processar imagem:', err);
             }
@@ -885,4 +901,234 @@ document.addEventListener('DOMContentLoaded', async () => {
             closeCategoriesModal();
         }
     });
+
+    // ==========================================
+    // BACKUP COMPLETO DO CATÁLOGO (JSON)
+    // ==========================================
+    const btnBackupCatalog = document.getElementById('btnBackupCatalog');
+    if (btnBackupCatalog) {
+        btnBackupCatalog.addEventListener('click', async () => {
+            try {
+                btnBackupCatalog.disabled = true;
+                const originalText = btnBackupCatalog.innerHTML;
+                btnBackupCatalog.innerHTML = '<span>⏳ Gerando Backup...</span>';
+
+                // Busca produtos atualizados (do Firestore ou cache local)
+                let exportProducts = allProducts;
+                if (isFirebase && (!exportProducts || exportProducts.length < 100)) {
+                    exportProducts = await getAllProducts();
+                }
+
+                const backupData = {
+                    dataBackup: new Date().toISOString(),
+                    totalProdutos: exportProducts.length,
+                    totalCategorias: categories.length,
+                    categorias: categories,
+                    produtos: exportProducts
+                };
+
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+                const downloadAnchor = document.createElement('a');
+                const nowStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                downloadAnchor.setAttribute("href", dataStr);
+                downloadAnchor.setAttribute("download", `BACKUP_COMPLETO_CATALOGO_${nowStr}.json`);
+                document.body.appendChild(downloadAnchor);
+                downloadAnchor.click();
+                downloadAnchor.remove();
+
+                alert(`✅ Backup de segurança concluído!\n\nArquivo baixado com ${exportProducts.length} produtos e ${categories.length} categorias.`);
+                btnBackupCatalog.innerHTML = originalText;
+                btnBackupCatalog.disabled = false;
+            } catch (err) {
+                console.error('Erro ao gerar backup:', err);
+                alert('Erro ao gerar backup dos produtos: ' + err.message);
+                btnBackupCatalog.disabled = false;
+            }
+        });
+    }
+
+    // ==========================================
+    // MODAL E ROTINA DE MIGRAÇÃO CLOUDFLARE R2
+    // ==========================================
+    const btnOpenR2Modal = document.getElementById('btnOpenR2Modal');
+    const r2MigrationModal = document.getElementById('r2MigrationModal');
+    const closeR2ModalBtn = document.getElementById('closeR2ModalBtn');
+    const r2StatTotal = document.getElementById('r2StatTotal');
+    const r2StatMigrated = document.getElementById('r2StatMigrated');
+    const r2StatPending = document.getElementById('r2StatPending');
+    const r2ProgressBox = document.getElementById('r2ProgressBox');
+    const r2ProgressBar = document.getElementById('r2ProgressBar');
+    const r2ProgressText = document.getElementById('r2ProgressText');
+    const r2ProgressPercent = document.getElementById('r2ProgressPercent');
+    const btnStartR2Migration = document.getElementById('btnStartR2Migration');
+    const btnPauseR2Migration = document.getElementById('btnPauseR2Migration');
+
+    let isMigrationRunning = false;
+
+    function updateR2Stats() {
+        if (!allProducts) return;
+        const total = allProducts.length;
+        let migrated = 0;
+        let pending = 0;
+
+        allProducts.forEach(p => {
+            const hasBase64 = (p.imagem && p.imagem.startsWith('data:')) || 
+                              (p.imagens && p.imagens.some(img => img && img.startsWith('data:')));
+            const hasR2 = (p.imagem && p.imagem.includes('r2.dev')) || 
+                          (p.imagens && p.imagens.some(img => img && img.includes('r2.dev')));
+            if (hasR2 && !hasBase64) {
+                migrated++;
+            } else if (hasBase64) {
+                pending++;
+            } else {
+                migrated++; // Sem imagem ou link externo
+            }
+        });
+
+        if (r2StatTotal) r2StatTotal.textContent = total;
+        if (r2StatMigrated) r2StatMigrated.textContent = migrated;
+        if (r2StatPending) r2StatPending.textContent = pending;
+    }
+
+    if (btnOpenR2Modal) {
+        btnOpenR2Modal.addEventListener('click', () => {
+            updateR2Stats();
+            r2MigrationModal.classList.add('open');
+            document.body.style.overflow = 'hidden';
+        });
+    }
+
+    function closeR2Modal() {
+        if (isMigrationRunning) {
+            if (!confirm('A otimização ainda está em andamento. Deseja fechar o modal? (Ela continuará em segundo plano)')) {
+                return;
+            }
+        }
+        r2MigrationModal.classList.remove('open');
+        document.body.style.overflow = '';
+    }
+
+    if (closeR2ModalBtn) closeR2ModalBtn.addEventListener('click', closeR2Modal);
+    if (r2MigrationModal) {
+        r2MigrationModal.addEventListener('click', (e) => {
+            if (e.target === r2MigrationModal) closeR2Modal();
+        });
+    }
+
+    // Iniciar Migração com Segurança Total
+    if (btnStartR2Migration) {
+        btnStartR2Migration.addEventListener('click', async () => {
+            if (!window.r2Storage) {
+                alert('Configuração do Cloudflare R2 não encontrada em config.js');
+                return;
+            }
+
+            if (!confirm('Recomendamos ter feito o download do Backup antes de iniciar.\n\nDeseja iniciar a otimização segura das fotos no Cloudflare R2 agora?')) {
+                return;
+            }
+
+            isMigrationRunning = true;
+            btnStartR2Migration.style.display = 'none';
+            btnPauseR2Migration.style.display = 'block';
+            r2ProgressBox.style.display = 'block';
+
+            // Seleciona itens com imagens em Base64
+            const toMigrate = allProducts.filter(p => {
+                return (p.imagem && p.imagem.startsWith('data:')) || 
+                       (p.imagens && p.imagens.some(img => img && img.startsWith('data:')));
+            });
+
+            const totalCount = toMigrate.length;
+            if (totalCount === 0) {
+                alert('Todos os produtos já estão otimizados no Cloudflare R2!');
+                btnStartR2Migration.style.display = 'block';
+                btnPauseR2Migration.style.display = 'none';
+                isMigrationRunning = false;
+                return;
+            }
+
+            let completed = 0;
+            for (const prod of toMigrate) {
+                if (!isMigrationRunning) break;
+
+                try {
+                    let updated = false;
+                    let newImagens = [];
+                    let newThumb = prod.imagemThumb;
+
+                    // 1. Processa array de imagens
+                    if (prod.imagens && prod.imagens.length > 0) {
+                        for (let i = 0; i < prod.imagens.length; i++) {
+                            const img = prod.imagens[i];
+                            if (img && img.startsWith('data:')) {
+                                const r2Url = await window.r2Storage.uploadImage(img, `prod_${prod.id}_img_${i}.webp`);
+                                newImagens.push(r2Url);
+                                updated = true;
+                            } else {
+                                newImagens.push(img);
+                            }
+                        }
+                    } else if (prod.imagem && prod.imagem.startsWith('data:')) {
+                        const r2Url = await window.r2Storage.uploadImage(prod.imagem, `prod_${prod.id}_main.webp`);
+                        newImagens.push(r2Url);
+                        updated = true;
+                    }
+
+                    // 2. Processa thumbnail se for base64
+                    if (prod.imagemThumb && prod.imagemThumb.startsWith('data:')) {
+                        newThumb = await window.r2Storage.uploadImage(prod.imagemThumb, `thumb_${prod.id}.webp`);
+                        updated = true;
+                    } else if (!newThumb && newImagens.length > 0) {
+                        newThumb = newImagens[0];
+                        updated = true;
+                    }
+
+                    // 3. Atualiza no Firestore e Cache SOMENTE se o upload teve 100% de sucesso
+                    if (updated) {
+                        const patchData = {
+                            imagem: newImagens[0] || '',
+                            imagens: newImagens,
+                            imagemThumb: newThumb || newImagens[0] || ''
+                        };
+
+                        if (isFirebase && dbFirestore) {
+                            await dbFirestore.collection('produtos').doc(String(prod.id)).update(patchData);
+                        }
+
+                        // Atualiza no cache local
+                        Object.assign(prod, patchData);
+                        await saveSingleProductToCache(prod);
+                    }
+                } catch (itemErr) {
+                    console.warn(`Aviso no produto ID ${prod.id} (mantendo original seguro):`, itemErr);
+                }
+
+                completed++;
+                const pct = Math.round((completed / totalCount) * 100);
+                r2ProgressBar.style.width = `${pct}%`;
+                r2ProgressPercent.textContent = `${pct}%`;
+                r2ProgressText.textContent = `Otimizando item ${completed} de ${totalCount}...`;
+                updateR2Stats();
+            }
+
+            isMigrationRunning = false;
+            btnStartR2Migration.style.display = 'block';
+            btnPauseR2Migration.style.display = 'none';
+
+            if (completed >= totalCount) {
+                alert('🎉 Parabéns! Todas as fotos foram otimizadas e migradas para o Cloudflare R2 com sucesso!');
+                renderAdminProducts();
+            }
+        });
+    }
+
+    if (btnPauseR2Migration) {
+        btnPauseR2Migration.addEventListener('click', () => {
+            isMigrationRunning = false;
+            btnPauseR2Migration.style.display = 'none';
+            btnStartR2Migration.style.display = 'block';
+            r2ProgressText.textContent = 'Otimização pausada.';
+        });
+    }
 });
+

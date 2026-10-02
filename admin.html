@@ -52,8 +52,16 @@
                     <h1 class="admin-title">Gerenciamento de Produtos</h1>
                     <p style="color: var(--text-muted); font-size: 0.9rem;">Cadastre novos produtos ou gerencie os existentes.</p>
                 </div>
-                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
                     <span id="adminUserEmail" style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500; margin-right: 0.5rem;"></span>
+                    <button id="btnBackupCatalog" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; background: #e0f2fe; color: #0369a1; border-color: #bae6fd;" title="Baixar cópia de segurança completa em JSON">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span>Fazer Backup (JSON)</span>
+                    </button>
+                    <button id="btnOpenR2Modal" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; background: #fef3c7; color: #92400e; border-color: #fde68a;" title="Otimizar fotos no Cloudflare R2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+                        <span>Otimizador R2</span>
+                    </button>
                     <button id="btnManageCategories" class="btn btn-secondary btn-sm" style="display: none;">
                         Gerenciar Categorias
                     </button>
@@ -237,6 +245,62 @@
         </div> <!-- Fim de adminPanelContent -->
     </main>
 
+    <!-- Modal de Otimização e Migração para Cloudflare R2 -->
+    <div id="r2MigrationModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <button class="modal-close" id="closeR2ModalBtn" aria-label="Fechar Modal">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <div class="modal-body" style="grid-template-columns: 1fr; padding: 2rem;">
+                <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; color: #92400e;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+                    <span>Otimizador Cloudflare R2</span>
+                </h2>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem;">
+                    Transfere fotos pesadas do banco para a nuvem de ultravelocidade da Cloudflare, mantendo os dados 100% seguros e acelerando o catálogo em até 95%.
+                </p>
+
+                <!-- Status dos Produtos -->
+                <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; margin-bottom: 1.25rem;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.5rem;">
+                        <span>Total de Produtos Cadastrados:</span>
+                        <strong id="r2StatTotal">0</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.5rem;">
+                        <span>Fotos já na Nuvem R2:</span>
+                        <strong id="r2StatMigrated" style="color: #16a34a;">0</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                        <span>Fotos pesadas no Banco (pendentes):</span>
+                        <strong id="r2StatPending" style="color: #dc2626;">0</strong>
+                    </div>
+                </div>
+
+                <!-- Barra de Progresso da Migração -->
+                <div id="r2ProgressBox" style="display: none; margin-bottom: 1.25rem;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                        <span id="r2ProgressText">Otimizando produtos...</span>
+                        <span id="r2ProgressPercent" style="font-weight: bold;">0%</span>
+                    </div>
+                    <div style="width: 100%; height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden;">
+                        <div id="r2ProgressBar" style="width: 0%; height: 100%; background: #16a34a; transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+
+                <!-- Ações -->
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <button id="btnStartR2Migration" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 0.75rem;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        <span>Iniciar Otimização de Fotos</span>
+                    </button>
+                    <button id="btnPauseR2Migration" class="btn btn-secondary" style="width: 100%; justify-content: center; display: none;">
+                        Pausar Otimização
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal de Gerenciamento de Categorias -->
     <div id="categoriesModal" class="modal">
         <div class="modal-content" style="max-width: 500px;">
@@ -286,8 +350,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
     <!-- Configurações e Scripts do Sistema -->
-    <script src="js/config.js"></script>
-    <script src="js/db.js?v=13"></script>
-    <script src="js/admin.js?v=13"></script>
+    <script src="js/config.js?v=14"></script>
+    <script src="js/r2-storage.js?v=14"></script>
+    <script src="js/db.js?v=14"></script>
+    <script src="js/admin.js?v=14"></script>
 </body>
 </html>

@@ -192,19 +192,46 @@ async function syncProductsCache(onProgress = null, forceFull = false) {
         }
 
         // Caso o cache ainda não esteja completo (ex: primeiro acesso ou menos de 500 itens):
-        // Baixa TODOS os produtos do Firestore
-        console.log('🔄 Baixando catálogo completo do Firestore para o cache local...');
-        const snapshot = await dbFirestore.collection('produtos').get();
+        // Baixa os produtos do Firestore em fatias seguras (lotes de 200) para não estourar a rede
+        console.log('🔄 Baixando catálogo do Firestore em lotes seguros para o cache local...');
         const all = [];
-        snapshot.forEach(doc => {
-            all.push({ id: doc.id, ...doc.data() });
-        });
-        
-        console.log(`✅ Catálogo completo recebido: ${all.length} produtos. Gravando no cache local...`);
-        await saveProductsToCache(all);
-        if (onProgress) {
-            onProgress(all.length);
+        let lastDoc = null;
+        const batchSize = 150;
+        let hasMore = true;
+
+        while (hasMore) {
+            let query = dbFirestore.collection('produtos').limit(batchSize);
+            if (lastDoc) {
+                query = query.startAfter(lastDoc);
+            }
+
+            const snapshot = await query.get();
+            if (snapshot.empty) {
+                hasMore = false;
+                break;
+            }
+
+            const batchList = [];
+            snapshot.forEach(doc => {
+                const item = { id: doc.id, ...doc.data() };
+                all.push(item);
+                batchList.push(item);
+            });
+
+            lastDoc = snapshot.docs[snapshot.docs.length - 1];
+            // Grava lote imediatamente no cache local (IndexedDB)
+            await saveProductsToCache(batchList);
+
+            if (onProgress) {
+                onProgress(all.length);
+            }
+
+            if (snapshot.size < batchSize) {
+                hasMore = false;
+            }
         }
+        
+        console.log(`✅ Catálogo completo recebido em lotes: ${all.length} produtos gravados no cache.`);
         return all;
     } catch (err) {
         console.error('Erro na sincronização de produtos:', err);

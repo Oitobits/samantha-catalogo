@@ -82,7 +82,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function loadRemainingCatalogInBackground(hasCache = false) {
         try {
-            const fullList = await syncProductsCache();
+            const fullList = await syncProductsCache((loadedCount) => {
+                // Atualiza a visualização e busca progressivamente sem travar a interface
+                if (!hasCache) {
+                    getCachedProducts().then(cachedNow => {
+                        if (cachedNow && cachedNow.length > allProducts.length) {
+                            allProducts = cachedNow;
+                            applyFiltersAndSort();
+                        }
+                    });
+                }
+            });
             if (fullList && fullList.length > 0) {
                 allProducts = fullList;
                 applyFiltersAndSort();
