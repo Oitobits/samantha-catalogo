@@ -195,6 +195,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const tr = document.createElement('tr');
             tr.style.borderBottom = '1px solid #f1f5f9';
+            tr.style.pageBreakInside = 'avoid';
             tr.innerHTML = `
                 <td style="padding: 0.75rem 0.5rem; font-size: 0.9rem; color: #475569;">
                     ${item.codigo || '-'}<br>
@@ -216,12 +217,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         pdfSubtotal.textContent = formattedTotal;
         pdfTotal.textContent = formattedTotal;
 
+        // Configurações otimizadas para navegadores mobile (iOS/Android) e desktop
         const options = {
-            margin: 0.5,
+            margin: [0.3, 0.3, 0.3, 0.3],
             filename: `pedido-samantha-${nome.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}.pdf`,
             image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true },
-            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+            html2canvas: { 
+                scale: 2, 
+                useCORS: true,
+                logging: false,
+                scrollX: 0,
+                scrollY: 0,
+                windowWidth: 750
+            },
+            jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+            pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
         };
 
         await html2pdf().set(options).from(pdfTemplate).save();
