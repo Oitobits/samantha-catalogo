@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vitrine Facilitá - Catálogo de Produtos</title>
-    <link rel="stylesheet" href="css/style.css?v=3">
+    <link rel="stylesheet" href="css/style.css?v=17">
 </head>
 <body>
 
@@ -129,6 +129,15 @@
         </div>
     </div>
 
+    <!-- Modal Lightbox para Zoom em Tela Cheia -->
+    <div id="imageLightboxModal" class="lightbox-modal">
+        <button type="button" class="lightbox-close" id="closeLightboxBtn" aria-label="Fechar Zoom">&times;</button>
+        <div class="lightbox-content">
+            <img id="lightboxImage" class="lightbox-img" src="" alt="Imagem Ampliada">
+        </div>
+        <div class="lightbox-hint">Toque ou clique para aproximar • Use dois dedos para zoom</div>
+    </div>
+
     <!-- Rodapé -->
     <footer class="site-footer">
         <p>&copy; 2026 Facilitá Atacado. Todos os direitos reservados. | Por: <a href="https://wa.me/5548996446192" target="_blank" style="color: inherit; text-decoration: underline;">Oitobits Informática</a></p>
@@ -140,8 +149,8 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
-    <script src="js/config.js?v=16"></script>
-    <script src="js/db.js?v=16"></script>
-    <script src="js/app.js?v=16"></script>
+    <script src="js/config.js?v=17"></script>
+    <script src="js/db.js?v=17"></script>
+    <script src="js/app.js?v=17"></script>
 </body>
 </html>

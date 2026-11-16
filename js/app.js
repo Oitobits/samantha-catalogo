@@ -34,6 +34,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     let categories = [];
     let visibleCount = 16;
     let currentOpenedProduct = null;
+    let savedScrollPosition = 0; // Armazena a posição exata da rolagem para evitar reset no mobile
+
+    // Referências do Lightbox de Zoom
+    const imageLightboxModal = document.getElementById('imageLightboxModal');
+    const lightboxImage = document.getElementById('lightboxImage');
+    const closeLightboxBtn = document.getElementById('closeLightboxBtn');
 
     // Inicialização da base de dados e carregamento dos produtos
     try {
@@ -354,9 +360,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         modalRef.textContent = `Ref: ${produto.referencia || 'Não informado'}`;
         modalTitle.textContent = displayTitle;
 
-        // Limpar qualquer controle de slide anterior no modal
+        // Limpar qualquer controle de slide e botão de zoom anterior no modal
         const imgContainer = document.querySelector('.modal-image-container');
-        imgContainer.querySelectorAll('.slide-arrow, .slide-dots').forEach(el => el.remove());
+        imgContainer.querySelectorAll('.slide-arrow, .slide-dots, .modal-zoom-btn').forEach(el => el.remove());
+
+        // Injeta botão de Zoom na imagem do modal
+        const zoomBtn = document.createElement('button');
+        zoomBtn.type = 'button';
+        zoomBtn.className = 'modal-zoom-btn';
+        zoomBtn.title = 'Ampliar Foto';
+        zoomBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+        `;
+        zoomBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openLightbox(modalImage.src);
+        });
+        imgContainer.appendChild(zoomBtn);
+
+        // Clique na imagem do modal abre o zoom diretamente
+        modalImage.onclick = () => openLightbox(modalImage.src);
 
         if (imgs.length > 1) {
             let modalImgIdx = 0;
@@ -426,14 +449,58 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         modalPrice.textContent = `R$ ${produto.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+        // Salva a posição atual do scroll ANTES de abrir o modal
+        savedScrollPosition = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+
         detailsModal.classList.add('open');
         document.body.style.overflow = 'hidden'; // Impede scroll do body
     }
 
-    // Fecha o modal
+    // Fecha o modal e restaura a posição exata de rolagem sem pular para o topo
     function closeModal() {
         detailsModal.classList.remove('open');
         document.body.style.overflow = '';
+        if (typeof savedScrollPosition === 'number' && savedScrollPosition >= 0) {
+            window.scrollTo({
+                top: savedScrollPosition,
+                left: 0,
+                behavior: 'instant'
+            });
+        }
+    }
+
+    // --- LOGICA DE ZOOM NA IMAGEM (LIGHTBOX) ---
+    function openLightbox(imgSrc) {
+        if (!imageLightboxModal || !lightboxImage) return;
+        lightboxImage.src = imgSrc;
+        lightboxImage.classList.remove('zoomed');
+        imageLightboxModal.classList.add('open');
+    }
+
+    function closeLightbox() {
+        if (!imageLightboxModal) return;
+        imageLightboxModal.classList.remove('open');
+        if (lightboxImage) lightboxImage.classList.remove('zoomed');
+    }
+
+    if (closeLightboxBtn) {
+        closeLightboxBtn.addEventListener('click', closeLightbox);
+    }
+
+    if (imageLightboxModal) {
+        imageLightboxModal.addEventListener('click', (e) => {
+            if (e.target === imageLightboxModal) {
+                closeLightbox();
+            }
+        });
+    }
+
+    if (lightboxImage) {
+        // Alterna entre zoom 1x e 2.2x ao clicar ou tocar
+        lightboxImage.addEventListener('click', (e) => {
+            e.stopPropagation();
+            lightboxImage.classList.toggle('zoomed');
+        });
     }
 
     // Eventos
@@ -477,8 +544,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Fechar com a tecla ESC
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && detailsModal.classList.contains('open')) {
-            closeModal();
+        if (e.key === 'Escape') {
+            if (imageLightboxModal && imageLightboxModal.classList.contains('open')) {
+                closeLightbox();
+            } else if (detailsModal && detailsModal.classList.contains('open')) {
+                closeModal();
+            }
         }
     });
 
