@@ -579,7 +579,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Carrega produto no formulário para edição
     async function editProduct(id) {
         try {
-            const produto = await getProductById(id);
+            // Busca com forceRemote=true para garantir que o formulário abra o preço mais atualizado da nuvem
+            const produto = await getProductById(id, true);
             if (produto) {
                 prodId.value = produto.id;
                 prodName.value = produto.nome || '';
@@ -901,6 +902,35 @@ document.addEventListener('DOMContentLoaded', async () => {
             closeCategoriesModal();
         }
     });
+
+    // ==========================================
+    // FORÇAR ATUALIZAÇÃO / SINCRONIZAÇÃO AGORA
+    // ==========================================
+    const btnSyncNow = document.getElementById('btnSyncNow');
+    if (btnSyncNow) {
+        btnSyncNow.addEventListener('click', async () => {
+            try {
+                btnSyncNow.disabled = true;
+                const originalHtml = btnSyncNow.innerHTML;
+                btnSyncNow.innerHTML = '<span>⏳ Atualizando...</span>';
+                
+                // Força busca completa de atualizações
+                const updatedList = await syncProductsCache(null, true);
+                if (updatedList && updatedList.length > 0) {
+                    allProducts = updatedList;
+                    renderAdminProducts();
+                }
+                
+                alert(`✅ Catálogo sincronizado com sucesso! ${allProducts.length} produtos carregados.`);
+                btnSyncNow.innerHTML = originalHtml;
+                btnSyncNow.disabled = false;
+            } catch (err) {
+                console.error('Erro ao sincronizar catálogo:', err);
+                alert('Erro ao sincronizar com a nuvem: ' + err.message);
+                btnSyncNow.disabled = false;
+            }
+        });
+    }
 
     // ==========================================
     // BACKUP COMPLETO DO CATÁLOGO (JSON)

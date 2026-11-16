@@ -54,6 +54,10 @@
                 </div>
                 <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
                     <span id="adminUserEmail" style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500; margin-right: 0.5rem;"></span>
+                    <button id="btnSyncNow" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; background: #ecfdf5; color: #047857; border-color: #a7f3d0;" title="Forçar atualização dos dados da nuvem agora">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        <span>Atualizar Catálogo</span>
+                    </button>
                     <button id="btnBackupCatalog" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; background: #e0f2fe; color: #0369a1; border-color: #bae6fd;" title="Baixar cópia de segurança completa em JSON">
                         <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         <span>Fazer Backup (JSON)</span>
@@ -350,9 +354,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
     <!-- Configurações e Scripts do Sistema -->
-    <script src="js/config.js?v=14"></script>
-    <script src="js/r2-storage.js?v=14"></script>
-    <script src="js/db.js?v=14"></script>
-    <script src="js/admin.js?v=14"></script>
+    <script src="js/config.js?v=16"></script>
+    <script src="js/r2-storage.js?v=16"></script>
+    <script src="js/db.js?v=16"></script>
+    <script src="js/admin.js?v=16"></script>
 </body>
 </html>

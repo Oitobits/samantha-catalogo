@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sortSelect = document.getElementById('sortSelect');
     const categorySelect = document.getElementById('categorySelect');
     const btnLoadMore = document.getElementById('btnLoadMore');
+    const btnSyncVitrine = document.getElementById('btnSyncVitrine');
     
     // Modal de Detalhes
     const detailsModal = document.getElementById('detailsModal');
@@ -78,6 +79,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 2. Sincroniza em segundo plano de forma suave
         loadRemainingCatalogInBackground(hasCache);
+    }
+
+    // Botão de atualização manual na vitrine
+    if (btnSyncVitrine) {
+        btnSyncVitrine.addEventListener('click', async () => {
+            const origHtml = btnSyncVitrine.innerHTML;
+            btnSyncVitrine.innerHTML = '<span>⏳ Atualizando...</span>';
+            try {
+                const refreshed = await syncProductsCache(null, true);
+                if (refreshed && refreshed.length > 0) {
+                    allProducts = refreshed;
+                    applyFiltersAndSort();
+                }
+                btnSyncVitrine.innerHTML = '<span>✅ Atualizado!</span>';
+                setTimeout(() => {
+                    btnSyncVitrine.innerHTML = origHtml;
+                }, 2000);
+            } catch (e) {
+                console.error('Erro ao atualizar vitrine:', e);
+                btnSyncVitrine.innerHTML = origHtml;
+            }
+        });
     }
 
     async function loadRemainingCatalogInBackground(hasCache = false) {
