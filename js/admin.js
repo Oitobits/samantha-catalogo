@@ -337,10 +337,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     function renderAdminProducts() {
         const query = adminSearchInput.value.toLowerCase().trim();
         
-        // Filtragem para a listagem admin (mostra ativos e inativos)
-        let filtered = allProducts;
+        // Filtragem para a listagem admin (mostra ativos e inativos, ocultando excluídos)
+        let filtered = allProducts.filter(p => p && p.excluido !== true);
         if (query) {
-            filtered = allProducts.filter(p => 
+            filtered = filtered.filter(p => 
                 (p.nome && p.nome.toLowerCase().includes(query)) ||
                 (p.codigo && p.codigo.toLowerCase().includes(query)) ||
                 (p.referencia && p.referencia.toLowerCase().includes(query)) ||
@@ -402,19 +402,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         pageItems.forEach(produto => {
             const tr = document.createElement('tr');
             
+            const esc = typeof escapeHtml === 'function' ? escapeHtml : (v => v || '');
             const displayTitle = produto.nome || (parseProductText(produto.descricao).title);
+            const safeTitle = esc(displayTitle);
+            const safeDesc = esc(produto.descricao || '');
+            const safeCod = esc(produto.codigo || 'S/C');
+            const safeRef = esc(produto.referencia || 'S/R');
             const imgSrc = produto.imagemThumb || produto.imagem || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="%23cbd5e1" stroke-width="1"><rect width="24" height="24" rx="2"/></svg>';
             const isActive = produto.status === 'ativo';
             const cat = categories.find(c => String(c.id) === String(produto.categoriaId));
-            const catNameText = cat ? cat.nome : 'Sem Categoria';
+            const catNameText = esc(cat ? cat.nome : 'Sem Categoria');
 
             tr.innerHTML = `
                 <td>
                     <div class="table-product-info">
-                        <img src="${imgSrc}" alt="${displayTitle}" loading="lazy">
+                        <img src="${imgSrc}" alt="${safeTitle}" loading="lazy" decoding="async">
                         <div class="table-product-details">
-                            <span class="table-product-desc" title="${produto.descricao || ''}">${displayTitle}</span>
-                            <span class="table-product-code">COD: ${produto.codigo || 'S/C'} | REF: ${produto.referencia || 'S/R'} | Cat: ${catNameText}</span>
+                            <span class="table-product-desc" title="${safeDesc}">${safeTitle}</span>
+                            <span class="table-product-code">COD: ${safeCod} | REF: ${safeRef} | Cat: ${catNameText}</span>
                         </div>
                     </div>
                 </td>
@@ -919,6 +924,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (updatedList && updatedList.length > 0) {
                     allProducts = updatedList;
                     renderAdminProducts();
+
+                    // Atualiza também o snapshot rápido no R2 para novos visitantes
+                    if (window.r2Storage && typeof window.r2Storage.uploadJson === 'function') {
+                        try {
+                            await window.r2Storage.uploadJson({
+                                dataGeracao: new Date().toISOString(),
+                                totalProdutos: allProducts.length,
+                                produtos: allProducts
+                            }, 'catalogo.json');
+                            console.log('⚡ Snapshot catalogo.json atualizado no R2 com sucesso.');
+                        } catch (snapErr) {
+                            console.warn('Aviso ao atualizar snapshot R2 (catálogo segue operando normalmente):', snapErr);
+                        }
+                    }
                 }
                 
                 alert(`✅ Catálogo sincronizado com sucesso! ${allProducts.length} produtos carregados.`);

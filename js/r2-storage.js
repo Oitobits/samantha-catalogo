@@ -5,12 +5,13 @@
 
 class R2Storage {
     constructor(config) {
-        this.accountId = config.accountId;
-        this.bucketName = config.bucketName;
-        this.publicUrl = config.publicUrl.replace(/\/+$/, '');
-        this.accessKeyId = config.accessKeyId;
-        this.secretAccessKey = config.secretAccessKey;
-        this.endpoint = `https://${this.accountId}.r2.cloudflarestorage.com`;
+        this.accountId = config.accountId || '';
+        this.bucketName = config.bucketName || '';
+        this.publicUrl = (config.publicUrl || '').replace(/\/+$/, '');
+        this.accessKeyId = config.accessKeyId || '';
+        this.secretAccessKey = config.secretAccessKey || '';
+        this.workerUrl = (config.workerUrl || '').replace(/\/+$/, '');
+        this.endpoint = this.accountId ? `https://${this.accountId}.r2.cloudflarestorage.com` : '';
         this.region = 'auto';
         this.service = 's3';
     }
@@ -69,30 +70,38 @@ class R2Storage {
     }
 
     /**
-     * Faz upload de uma imagem (DataURL Base64 ou Blob/File) para o Cloudflare R2
-     * @param {string|Blob|File} imageInput 
-     * @param {string} customKey 
-     * @returns {Promise<string>} URL pública final da imagem
+     * Faz upload de bytes arbitrários (imagem ou JSON) para o Cloudflare R2.
+     * Usa Cloudflare Worker autenticado quando workerUrl estiver configurado,
+     * ou assinatura direta SigV4 como fallback.
+     * @param {Uint8Array} bodyBytes
+     * @param {string} key
+     * @param {string} contentType
+     * @returns {Promise<string>} URL pública final
      */
-    async uploadImage(imageInput, customKey = null) {
-        let bodyBytes;
-        let contentType = 'image/webp';
-
-        if (typeof imageInput === 'string' && imageInput.startsWith('data:')) {
-            const parsed = this.base64ToBytes(imageInput);
-            bodyBytes = parsed.bytes;
-            contentType = parsed.mime;
-        } else if (imageInput instanceof Blob || imageInput instanceof File) {
-            const arrayBuffer = await imageInput.arrayBuffer();
-            bodyBytes = new Uint8Array(arrayBuffer);
-            contentType = imageInput.type || 'image/webp';
-        } else {
-            throw new Error('Formato de imagem inválido para upload no R2.');
+    async uploadObject(bodyBytes, key, contentType = 'application/octet-stream') {
+        if (this.workerUrl) {
+            let idToken = '';
+            if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) {
+                idToken = await firebase.auth().currentUser.getIdToken();
+            }
+            const response = await fetch(`${this.workerUrl}/${encodeURIComponent(key)}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': contentType,
+                    ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+                },
+                body: bodyBytes
+            });
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(`Falha no upload via Worker R2 (HTTP ${response.status}): ${errText}`);
+            }
+            return `${this.publicUrl}/${key}`;
         }
 
-        // Gera nome único se não fornecido
-        const ext = contentType.includes('webp') ? 'webp' : (contentType.includes('png') ? 'png' : 'jpg');
-        const key = customKey || `prod_${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${ext}`;
+        if (!this.accessKeyId || !this.secretAccessKey || !this.endpoint) {
+            throw new Error('Credenciais do R2 ou Worker URL não configurados.');
+        }
 
         const method = 'PUT';
         const host = `${this.accountId}.r2.cloudflarestorage.com`;
@@ -156,6 +165,47 @@ class R2Storage {
 
         // Retorna a URL pública acessível para os clientes
         return `${this.publicUrl}/${key}`;
+    }
+
+    /**
+     * Faz upload de um objeto JSON para o Cloudflare R2 (ex: catalogo.json)
+     * @param {object} data
+     * @param {string} key
+     * @returns {Promise<string>}
+     */
+    async uploadJson(data, key = 'catalogo.json') {
+        const encoder = new TextEncoder();
+        const bytes = encoder.encode(JSON.stringify(data));
+        return await this.uploadObject(bytes, key, 'application/json; charset=utf-8');
+    }
+
+    /**
+     * Faz upload de uma imagem (DataURL Base64 ou Blob/File) para o Cloudflare R2
+     * @param {string|Blob|File} imageInput 
+     * @param {string} customKey 
+     * @returns {Promise<string>} URL pública final da imagem
+     */
+    async uploadImage(imageInput, customKey = null) {
+        let bodyBytes;
+        let contentType = 'image/webp';
+
+        if (typeof imageInput === 'string' && imageInput.startsWith('data:')) {
+            const parsed = this.base64ToBytes(imageInput);
+            bodyBytes = parsed.bytes;
+            contentType = parsed.mime;
+        } else if (imageInput instanceof Blob || imageInput instanceof File) {
+            const arrayBuffer = await imageInput.arrayBuffer();
+            bodyBytes = new Uint8Array(arrayBuffer);
+            contentType = imageInput.type || 'image/webp';
+        } else {
+            throw new Error('Formato de imagem inválido para upload no R2.');
+        }
+
+        // Gera nome único se não fornecido
+        const ext = contentType.includes('webp') ? 'webp' : (contentType.includes('png') ? 'png' : 'jpg');
+        const key = customKey || `prod_${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${ext}`;
+
+        return await this.uploadObject(bodyBytes, key, contentType);
     }
 }
 

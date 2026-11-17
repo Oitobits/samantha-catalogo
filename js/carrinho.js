@@ -65,8 +65,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         for (const item of cart) {
             let imageSrc = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 24 24" fill="none" stroke="%23cbd5e1" stroke-width="1" style="background:%23f8fafc"><rect width="24" height="24" rx="2"/></svg>';
             try {
-                const dbProduct = await getProductById(item.id);
-                if (dbProduct) {
+                // Busca com forceRemote=true para garantir que preços alterados recentemente sejam aplicados ao pedido
+                const dbProduct = await getProductById(item.id, true);
+                if (dbProduct && dbProduct.excluido !== true) {
                     // Sincroniza dados caso o administrador tenha editado preço/nome
                     item.nome = dbProduct.nome || item.nome;
                     item.preco = dbProduct.preco !== undefined ? dbProduct.preco : item.preco;
@@ -86,6 +87,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             const itemTotalPrice = item.preco * item.quantidade;
+            const safeNome = typeof escapeHtml === 'function' ? escapeHtml(item.nome) : item.nome;
+            const safeCod = typeof escapeHtml === 'function' ? escapeHtml(item.codigo || 'S/C') : (item.codigo || 'S/C');
+            const safeRef = typeof escapeHtml === 'function' ? escapeHtml(item.referencia || 'S/R') : (item.referencia || 'S/R');
+            const safeId = typeof escapeHtml === 'function' ? escapeHtml(item.id) : item.id;
 
             const row = document.createElement('div');
             row.style.display = 'flex';
@@ -99,27 +104,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             row.style.flexWrap = 'wrap';
 
             row.innerHTML = `
-                <img src="${imageSrc}" alt="${item.nome}" style="width: 60px; height: 60px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--border); background-color: #f8fafc;">
+                <img src="${imageSrc}" alt="${safeNome}" style="width: 60px; height: 60px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--border); background-color: #f8fafc;">
                 
                 <div style="flex: 1; min-width: 150px;">
-                    <div style="font-size: 0.8rem; color: var(--text-light); font-weight: 600;">CÓD: ${item.codigo || 'S/C'} | REF: ${item.referencia || 'S/R'}</div>
-                    <h4 style="font-size: 0.95rem; font-weight: bold; color: var(--text-main); margin: 0.15rem 0;">${item.nome}</h4>
+                    <div style="font-size: 0.8rem; color: var(--text-light); font-weight: 600;">CÓD: ${safeCod} | REF: ${safeRef}</div>
+                    <h4 style="font-size: 0.95rem; font-weight: bold; color: var(--text-main); margin: 0.15rem 0;">${safeNome}</h4>
                     <div style="font-size: 0.9rem; color: var(--primary); font-weight: bold;">R$ ${item.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 </div>
 
                 <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
                     <!-- Controles de Quantidade -->
                     <div class="quantity-selector" style="display: flex; align-items: center; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: #fff;">
-                        <button type="button" class="btn btn-secondary btn-dec" data-id="${item.id}" style="padding: 0.35rem 0.75rem; border: none; height: 32px; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 0;">-</button>
+                        <button type="button" class="btn btn-secondary btn-dec" data-id="${safeId}" style="padding: 0.35rem 0.75rem; border: none; height: 32px; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 0;">-</button>
                         <input type="number" class="qty-input" value="${item.quantidade}" style="width: 40px; text-align: center; border: none; height: 32px; font-weight: bold; font-size: 0.9rem; outline: none;" readonly>
-                        <button type="button" class="btn btn-secondary btn-inc" data-id="${item.id}" style="padding: 0.35rem 0.75rem; border: none; height: 32px; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 0;">+</button>
+                        <button type="button" class="btn btn-secondary btn-inc" data-id="${safeId}" style="padding: 0.35rem 0.75rem; border: none; height: 32px; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 0;">+</button>
                     </div>
 
                     <div style="font-size: 1rem; font-weight: bold; color: var(--text-main); min-width: 90px; text-align: right;">
                         R$ ${itemTotalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
 
-                    <button type="button" class="btn btn-danger btn-sm btn-remove" data-id="${item.id}" style="padding: 0.35rem 0.5rem; font-size: 0.8rem; border-radius: var(--radius-sm);">
+                    <button type="button" class="btn btn-danger btn-sm btn-remove" data-id="${safeId}" style="padding: 0.35rem 0.5rem; font-size: 0.8rem; border-radius: var(--radius-sm);">
                         Excluir
                     </button>
                 </div>
@@ -192,16 +197,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         cart.forEach(item => {
             const sub = item.preco * item.quantidade;
             totalGeral += sub;
+            const esc = typeof escapeHtml === 'function' ? escapeHtml : (v => v || '');
 
             const tr = document.createElement('tr');
             tr.style.borderBottom = '1px solid #f1f5f9';
             tr.style.pageBreakInside = 'avoid';
             tr.innerHTML = `
                 <td style="padding: 0.75rem 0.5rem; font-size: 0.9rem; color: #475569;">
-                    ${item.codigo || '-'}<br>
-                    <span style="font-size: 0.75rem; color: #94a3b8;">REF: ${item.referencia || '-'}</span>
+                    ${esc(item.codigo || '-')}<br>
+                    <span style="font-size: 0.75rem; color: #94a3b8;">REF: ${esc(item.referencia || '-')}</span>
                 </td>
-                <td style="padding: 0.75rem 0.5rem; font-size: 0.95rem; font-weight: 500; color: #1e293b;">${item.nome}</td>
+                <td style="padding: 0.75rem 0.5rem; font-size: 0.95rem; font-weight: 500; color: #1e293b;">${esc(item.nome)}</td>
                 <td style="padding: 0.75rem 0.5rem; font-size: 0.95rem; text-align: right; color: #1e293b; font-weight: bold;">${item.quantidade}</td>
                 <td style="padding: 0.75rem 0.5rem; font-size: 0.95rem; text-align: right; color: #475569;">
                     R$ ${item.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}

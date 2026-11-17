@@ -112,19 +112,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function loadRemainingCatalogInBackground(hasCache = false) {
         try {
             const fullList = await syncProductsCache((loadedCount) => {
-                // Atualiza a visualização e busca progressivamente sem travar a interface
+                // Atualiza a visualização e busca progressivamente sem travar nem resetar a rolagem atual
                 if (!hasCache) {
                     getCachedProducts().then(cachedNow => {
                         if (cachedNow && cachedNow.length > allProducts.length) {
                             allProducts = cachedNow;
-                            applyFiltersAndSort();
+                            applyFiltersAndSort(true);
                         }
                     });
                 }
             });
             if (fullList && fullList.length > 0) {
                 allProducts = fullList;
-                applyFiltersAndSort();
+                applyFiltersAndSort(true);
             }
         } catch (err) {
             console.error('Erro na sincronização da vitrine em segundo plano:', err);
@@ -179,13 +179,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Filtra e ordena os produtos baseado nas escolhas do usuário
-    function applyFiltersAndSort() {
+    function applyFiltersAndSort(preserveVisibleCount = false) {
         const query = searchInput.value.toLowerCase().trim();
         const sortBy = sortSelect.value;
         const activeCategory = categorySelect.value;
 
-        // 1. Filtrar ativos
-        let result = allProducts.filter(p => p.status === 'ativo');
+        // 1. Filtrar ativos e não excluídos
+        let result = allProducts.filter(p => p.status === 'ativo' && p.excluido !== true);
 
         // 1.5. Filtrar por categoria selecionada
         if (activeCategory === 'none') {
@@ -227,7 +227,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         filteredProducts = result;
-        visibleCount = 16;
+        if (preserveVisibleCount !== true) {
+            visibleCount = 16;
+        }
         renderProducts();
     }
 
@@ -277,18 +279,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                 dotsHtml += `</div>`;
             }
 
+            const esc = typeof escapeHtml === 'function' ? escapeHtml : (v => v || '');
+            const safeTitle = esc(displayTitle);
+            const safeCod = esc(produto.codigo || 'S/C');
+            const safeRef = esc(produto.referencia || 'S/R');
+
             card.innerHTML = `
                 <div class="product-image-container">
-                    <img class="card-product-img" src="${cardImgSrc}" alt="${displayTitle}" loading="lazy">
+                    <img class="card-product-img" src="${cardImgSrc}" alt="${safeTitle}" loading="lazy" decoding="async">
                     ${arrowsHtml}
                     ${dotsHtml}
                 </div>
                 <div class="product-info">
                     <div class="product-meta">
-                        <span class="product-code">CÓD: ${produto.codigo || 'S/C'}</span>
-                        <span class="product-ref">${produto.referencia || 'S/R'}</span>
+                        <span class="product-code">CÓD: ${safeCod}</span>
+                        <span class="product-ref">${safeRef}</span>
                     </div>
-                    <h3 class="product-desc" title="${displayTitle}">${displayTitle}</h3>
+                    <h3 class="product-desc" title="${safeTitle}">${safeTitle}</h3>
                     <div class="product-footer">
                         <span class="product-price">R$ ${produto.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         <span class="badge badge-success" style="font-size: 0.7rem; font-weight: 500;">Disponível</span>

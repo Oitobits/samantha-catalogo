@@ -66,8 +66,19 @@ function openIndexedDB() {
 }
 
 // ==========================================
-// FUNÇÕES DE CACHE LOCAL (INDEXEDDB ACELERADO)
+// UTILITÁRIOS DE SEGURANÇA E CACHE LOCAL
 // ==========================================
+
+// Sanitiza strings para evitar quebra de HTML / XSS em templates innerHTML
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
 // Obter todos os produtos do cache local (execução instantânea ~10-50ms)
 async function getCachedProducts() {
@@ -77,7 +88,10 @@ async function getCachedProducts() {
             const transaction = db.transaction(STORE_NAME, 'readonly');
             const store = transaction.objectStore(STORE_NAME);
             const request = store.getAll();
-            request.onsuccess = () => resolve(request.result || []);
+            request.onsuccess = () => {
+                const list = (request.result || []).filter(p => p && p.excluido !== true);
+                resolve(list);
+            };
             request.onerror = () => resolve([]);
         });
     } catch (err) {
@@ -154,142 +168,222 @@ async function removeProductFromCache(id) {
     }
 }
 
+// Lock para evitar sincronizações simultâneas concorrentes no IndexedDB
+let activeSyncPromise = null;
+
+// Subtrai margem de segurança (5 min) para evitar diferenças de relógio entre aparelhos
+function getSafeSyncTimestamp(isoString) {
+    if (!isoString) return null;
+    const ms = Date.parse(isoString);
+    if (isNaN(ms)) return null;
+    return new Date(ms - 5 * 60 * 1000).toISOString();
+}
+
+// Aplica itens recebidos do delta-sync ao mapa e separa exclusões (soft-delete)
+function applySyncedDocToMap(doc, map, recentItems, deletedIds) {
+    const item = { id: doc.id, ...doc.data() };
+    const idStr = String(doc.id);
+    if (item.excluido === true) {
+        map.delete(idStr);
+        deletedIds.add(idStr);
+    } else {
+        map.set(idStr, item);
+        if (!recentItems.some(r => String(r.id) === idStr)) {
+            recentItems.push(item);
+        }
+    }
+}
+
+// Tenta baixar snapshot estático ultraleve do Cloudflare R2 (1 requisição ao invés de 5.000 leituras no Firestore)
+async function tryLoadSnapshotFromR2() {
+    if (typeof r2Config === 'undefined' || !r2Config.publicUrl) return null;
+    try {
+        const baseUrl = r2Config.publicUrl.replace(/\/+$/, '');
+        const resp = await fetch(`${baseUrl}/catalogo.json?t=${Date.now()}`, { cache: 'no-store' });
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        if (data && Array.isArray(data.produtos) && data.produtos.length > 0) {
+            return {
+                produtos: data.produtos.filter(p => p && p.excluido !== true),
+                dataGeracao: data.dataGeracao || null
+            };
+        }
+    } catch (e) {
+        console.warn('Snapshot R2 indisponível, usando fallback direto do Firestore:', e.message);
+    }
+    return null;
+}
+
 // Sincronização inteligente com a nuvem (baixa o catálogo completo para o cache local)
 async function syncProductsCache(onProgress = null, forceFull = false) {
     if (!isFirebase) {
         return await getCachedProducts();
     }
 
-    try {
-        const cached = await getCachedProducts();
-        
-        // Se já temos um catálogo expressivo em cache (mais de 500 itens) e NÃO foi forçado completo:
-        // Faz uma sincronização inteligente dos produtos adicionados ou alterados recentemente
-        if (cached.length >= 500 && !forceFull) {
-            try {
-                // Obtém a data da última sincronização registrada
-                const lastSyncTime = localStorage.getItem('samantha_last_sync_time');
-                let recentItems = [];
-                const map = new Map();
-                cached.forEach(p => map.set(String(p.id), p));
-
-                let querySnap = null;
-
-                // 1. Tenta buscar somente alterações a partir do último sync (se houver marcação de tempo)
-                if (lastSyncTime) {
-                    try {
-                        const deltaSnap = await dbFirestore.collection('produtos')
-                            .where('dataAtualizacao', '>=', lastSyncTime)
-                            .get();
-                        if (!deltaSnap.empty) {
-                            deltaSnap.forEach(doc => {
-                                const item = { id: doc.id, ...doc.data() };
-                                map.set(String(doc.id), item);
-                                recentItems.push(item);
-                            });
-                        }
-                    } catch (deltaErr) {
-                        console.warn('Busca delta por dataAtualizacao precisa de fallback ordenado:', deltaErr);
-                    }
-                }
-
-                // 2. Busca os mais recentemente atualizados para garantir que qualquer edição seja capturada
-                const orderSnap = await dbFirestore.collection('produtos')
-                    .orderBy('dataAtualizacao', 'desc')
-                    .limit(200)
-                    .get();
-
-                if (!orderSnap.empty) {
-                    orderSnap.forEach(doc => {
-                        const item = { id: doc.id, ...doc.data() };
-                        map.set(String(doc.id), item);
-                        if (!recentItems.some(r => String(r.id) === String(doc.id))) {
-                            recentItems.push(item);
-                        }
-                    });
-                }
-
-                // 3. Busca também os mais recentemente criados (dataCadastro desc)
-                try {
-                    const createSnap = await dbFirestore.collection('produtos')
-                        .orderBy('dataCadastro', 'desc')
-                        .limit(50)
-                        .get();
-                    if (!createSnap.empty) {
-                        createSnap.forEach(doc => {
-                            const item = { id: doc.id, ...doc.data() };
-                            map.set(String(doc.id), item);
-                            if (!recentItems.some(r => String(r.id) === String(doc.id))) {
-                                recentItems.push(item);
-                            }
-                        });
-                    }
-                } catch (cErr) {
-                    // Ignora caso campo não indexado
-                }
-
-                if (recentItems.length > 0) {
-                    await saveProductsToCache(recentItems);
-                    console.log(`⚡ Sincronizados ${recentItems.length} produtos atualizados/recentes da nuvem.`);
-                }
-
-                localStorage.setItem('samantha_last_sync_time', new Date().toISOString());
-                const merged = Array.from(map.values());
-                return merged;
-            } catch (quickErr) {
-                console.warn('Aviso no delta-sync, usando cache existente:', quickErr);
-                return cached;
-            }
-        }
-
-        // Caso o cache ainda não esteja completo (ex: primeiro acesso ou menos de 500 itens):
-        // Baixa os produtos do Firestore em fatias seguras (lotes de 200) para não estourar a rede
-        console.log('🔄 Baixando catálogo do Firestore em lotes seguros para o cache local...');
-        const all = [];
-        let lastDoc = null;
-        const batchSize = 150;
-        let hasMore = true;
-
-        while (hasMore) {
-            let query = dbFirestore.collection('produtos').limit(batchSize);
-            if (lastDoc) {
-                query = query.startAfter(lastDoc);
-            }
-
-            const snapshot = await query.get();
-            if (snapshot.empty) {
-                hasMore = false;
-                break;
-            }
-
-            const batchList = [];
-            snapshot.forEach(doc => {
-                const item = { id: doc.id, ...doc.data() };
-                all.push(item);
-                batchList.push(item);
-            });
-
-            lastDoc = snapshot.docs[snapshot.docs.length - 1];
-            // Grava lote imediatamente no cache local (IndexedDB)
-            await saveProductsToCache(batchList);
-
-            if (onProgress) {
-                onProgress(all.length);
-            }
-
-            if (snapshot.size < batchSize) {
-                hasMore = false;
-            }
-        }
-        
-        console.log(`✅ Catálogo completo recebido em lotes: ${all.length} produtos gravados no cache.`);
-        return all;
-    } catch (err) {
-        console.error('Erro na sincronização de produtos:', err);
-        const cachedFallback = await getCachedProducts();
-        if (cachedFallback.length > 0) return cachedFallback;
-        throw err;
+    if (activeSyncPromise && !forceFull) {
+        return await activeSyncPromise;
     }
+
+    const runSync = async () => {
+        try {
+            const cached = await getCachedProducts();
+            
+            // Se já temos um catálogo expressivo em cache (mais de 500 itens) e NÃO foi forçado completo:
+            // Faz uma sincronização inteligente dos produtos adicionados, alterados ou excluídos recentemente
+            if (cached.length >= 500 && !forceFull) {
+                try {
+                    const lastSyncTime = localStorage.getItem('samantha_last_sync_time');
+                    const safeSyncTime = getSafeSyncTimestamp(lastSyncTime);
+                    const recentItems = [];
+                    const deletedIds = new Set();
+                    const map = new Map();
+                    cached.forEach(p => map.set(String(p.id), p));
+
+                    // 1. Busca alterações desde a última sincronização (com margem de segurança de 5 min)
+                    if (safeSyncTime) {
+                        try {
+                            const deltaSnap = await dbFirestore.collection('produtos')
+                                .where('dataAtualizacao', '>=', safeSyncTime)
+                                .get();
+                            if (!deltaSnap.empty) {
+                                deltaSnap.forEach(doc => applySyncedDocToMap(doc, map, recentItems, deletedIds));
+                            }
+                        } catch (deltaErr) {
+                            console.warn('Busca delta por dataAtualizacao usará fallback ordenado:', deltaErr);
+                        }
+                    }
+
+                    // 2. Busca os mais recentemente atualizados para garantir que qualquer edição/exclusão seja capturada
+                    const orderSnap = await dbFirestore.collection('produtos')
+                        .orderBy('dataAtualizacao', 'desc')
+                        .limit(200)
+                        .get();
+
+                    if (!orderSnap.empty) {
+                        orderSnap.forEach(doc => applySyncedDocToMap(doc, map, recentItems, deletedIds));
+                    }
+
+                    // 3. Busca também os mais recentemente criados (dataCadastro desc)
+                    try {
+                        const createSnap = await dbFirestore.collection('produtos')
+                            .orderBy('dataCadastro', 'desc')
+                            .limit(50)
+                            .get();
+                        if (!createSnap.empty) {
+                            createSnap.forEach(doc => applySyncedDocToMap(doc, map, recentItems, deletedIds));
+                        }
+                    } catch (cErr) {
+                        // Ignora caso campo não indexado
+                    }
+
+                    if (recentItems.length > 0) {
+                        await saveProductsToCache(recentItems);
+                    }
+                    for (const delId of deletedIds) {
+                        await removeProductFromCache(delId);
+                    }
+                    if (recentItems.length > 0 || deletedIds.size > 0) {
+                        console.log(`⚡ Sincronizados ${recentItems.length} atualizados e ${deletedIds.size} removidos.`);
+                    }
+
+                    localStorage.setItem('samantha_last_sync_time', new Date().toISOString());
+                    return Array.from(map.values());
+                } catch (quickErr) {
+                    console.warn('Aviso no delta-sync, usando cache existente:', quickErr);
+                    return cached;
+                }
+            }
+
+            // Cold Start (primeiro acesso) quando não é forceFull: tenta carregar snapshot leve do R2 primeiro
+            if (!forceFull) {
+                const snapshotR2 = await tryLoadSnapshotFromR2();
+                if (snapshotR2 && snapshotR2.produtos.length > 0) {
+                    console.log(`⚡ Snapshot carregado do Cloudflare R2: ${snapshotR2.produtos.length} produtos!`);
+                    await saveProductsToCache(snapshotR2.produtos);
+                    if (onProgress) onProgress(snapshotR2.produtos.length);
+
+                    // Aplica eventuais alterações no Firestore posteriores à geração do snapshot
+                    const map = new Map();
+                    snapshotR2.produtos.forEach(p => map.set(String(p.id), p));
+                    const safeSnapTime = getSafeSyncTimestamp(snapshotR2.dataGeracao);
+                    if (safeSnapTime) {
+                        try {
+                            const recentItems = [];
+                            const deletedIds = new Set();
+                            const deltaSnap = await dbFirestore.collection('produtos')
+                                .where('dataAtualizacao', '>=', safeSnapTime)
+                                .get();
+                            if (!deltaSnap.empty) {
+                                deltaSnap.forEach(doc => applySyncedDocToMap(doc, map, recentItems, deletedIds));
+                            }
+                            if (recentItems.length > 0) await saveProductsToCache(recentItems);
+                            for (const delId of deletedIds) await removeProductFromCache(delId);
+                        } catch (deltaErr) {
+                            console.warn('Aviso no delta pós-snapshot:', deltaErr);
+                        }
+                    }
+                    localStorage.setItem('samantha_last_sync_time', new Date().toISOString());
+                    return Array.from(map.values());
+                }
+            }
+
+            // Fallback / Carga Completa: baixa os produtos do Firestore em fatias seguras (lotes de 150)
+            console.log('🔄 Baixando catálogo do Firestore em lotes seguros para o cache local...');
+            const all = [];
+            let lastDoc = null;
+            const batchSize = 150;
+            let hasMore = true;
+
+            while (hasMore) {
+                let query = dbFirestore.collection('produtos').limit(batchSize);
+                if (lastDoc) {
+                    query = query.startAfter(lastDoc);
+                }
+
+                const snapshot = await query.get();
+                if (snapshot.empty) {
+                    hasMore = false;
+                    break;
+                }
+
+                const batchList = [];
+                snapshot.forEach(doc => {
+                    const item = { id: doc.id, ...doc.data() };
+                    if (item.excluido !== true) {
+                        all.push(item);
+                        batchList.push(item);
+                    }
+                });
+
+                lastDoc = snapshot.docs[snapshot.docs.length - 1];
+                if (batchList.length > 0) {
+                    await saveProductsToCache(batchList);
+                }
+
+                if (onProgress) {
+                    onProgress(all.length);
+                }
+
+                if (snapshot.size < batchSize) {
+                    hasMore = false;
+                }
+            }
+            
+            localStorage.setItem('samantha_last_sync_time', new Date().toISOString());
+            console.log(`✅ Catálogo completo recebido em lotes: ${all.length} produtos gravados no cache.`);
+            return all;
+        } catch (err) {
+            console.error('Erro na sincronização de produtos:', err);
+            const cachedFallback = await getCachedProducts();
+            if (cachedFallback.length > 0) return cachedFallback;
+            throw err;
+        } finally {
+            activeSyncPromise = null;
+        }
+    };
+
+    activeSyncPromise = runSync();
+    return await activeSyncPromise;
 }
 
 // ==========================================
@@ -307,7 +401,10 @@ async function getAllProducts(limitVal = null) {
             const snapshot = await query.get();
             const list = [];
             snapshot.forEach(doc => {
-                list.push({ id: doc.id, ...doc.data() });
+                const item = { id: doc.id, ...doc.data() };
+                if (item.excluido !== true) {
+                    list.push(item);
+                }
             });
             // Só salva no cache se for a lista completa sem limite
             if (!limitVal && list.length > 0) {
@@ -449,11 +546,15 @@ async function updateProduct(produto) {
     }
 }
 
-// Excluir produto (Firestore + Cache Local)
+// Excluir produto (Soft-delete no Firestore para propagar remoção ao cache dos clientes)
 async function deleteProduct(id) {
     if (isFirebase) {
         try {
-            await dbFirestore.collection('produtos').doc(String(id)).delete();
+            await dbFirestore.collection('produtos').doc(String(id)).set({
+                excluido: true,
+                status: 'inativo',
+                dataAtualizacao: new Date().toISOString()
+            }, { merge: true });
             await removeProductFromCache(id);
             return true;
         } catch (err) {
