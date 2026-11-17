@@ -80,6 +80,21 @@ function escapeHtml(str) {
         .replace(/'/g, '&#39;');
 }
 
+// Valida URLs de imagem permitindo apenas http(s)://, data:image/ ou caminhos relativos seguros
+function sanitizeImageUrl(url, fallback = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 24 24" fill="none" stroke="%23cbd5e1" stroke-width="1" style="background:%23f8fafc"><rect width="24" height="24" rx="2"/></svg>') {
+    if (!url || typeof url !== 'string') return fallback;
+    const trimmed = url.trim();
+    if (!trimmed) return fallback;
+    const lower = trimmed.toLowerCase();
+    if (lower.startsWith('https://') || lower.startsWith('http://') || lower.startsWith('data:image/')) {
+        return trimmed;
+    }
+    if (!lower.includes(':') && (lower.startsWith('/') || lower.startsWith('./') || lower.startsWith('img/'))) {
+        return trimmed;
+    }
+    return fallback;
+}
+
 // Obter todos os produtos do cache local (execução instantânea ~10-50ms)
 async function getCachedProducts() {
     try {

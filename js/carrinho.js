@@ -86,7 +86,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.warn(`Erro ao buscar produto com ID ${item.id} do banco:`, err);
             }
 
-            const itemTotalPrice = item.preco * item.quantidade;
+            const precoSeguro = Number(item.preco) || 0;
+            const qtdSegura = parseInt(item.quantidade) || 1;
+            const itemTotalPrice = precoSeguro * qtdSegura;
+            const safeImgSrc = typeof sanitizeImageUrl === 'function' ? sanitizeImageUrl(imageSrc) : imageSrc;
             const safeNome = typeof escapeHtml === 'function' ? escapeHtml(item.nome) : item.nome;
             const safeCod = typeof escapeHtml === 'function' ? escapeHtml(item.codigo || 'S/C') : (item.codigo || 'S/C');
             const safeRef = typeof escapeHtml === 'function' ? escapeHtml(item.referencia || 'S/R') : (item.referencia || 'S/R');
@@ -104,12 +107,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             row.style.flexWrap = 'wrap';
 
             row.innerHTML = `
-                <img src="${imageSrc}" alt="${safeNome}" style="width: 60px; height: 60px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--border); background-color: #f8fafc;">
+                <img src="${safeImgSrc}" alt="${safeNome}" style="width: 60px; height: 60px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--border); background-color: #f8fafc;">
                 
                 <div style="flex: 1; min-width: 150px;">
                     <div style="font-size: 0.8rem; color: var(--text-light); font-weight: 600;">CÓD: ${safeCod} | REF: ${safeRef}</div>
                     <h4 style="font-size: 0.95rem; font-weight: bold; color: var(--text-main); margin: 0.15rem 0;">${safeNome}</h4>
-                    <div style="font-size: 0.9rem; color: var(--primary); font-weight: bold;">R$ ${item.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div style="font-size: 0.9rem; color: var(--primary); font-weight: bold;">R$ ${precoSeguro.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 </div>
 
                 <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
@@ -195,7 +198,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         let totalGeral = 0;
 
         cart.forEach(item => {
-            const sub = item.preco * item.quantidade;
+            const precoSeguro = Number(item.preco) || 0;
+            const qtdSegura = parseInt(item.quantidade) || 1;
+            const sub = precoSeguro * qtdSegura;
             totalGeral += sub;
             const esc = typeof escapeHtml === 'function' ? escapeHtml : (v => v || '');
 
@@ -208,9 +213,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <span style="font-size: 0.75rem; color: #94a3b8;">REF: ${esc(item.referencia || '-')}</span>
                 </td>
                 <td style="padding: 0.75rem 0.5rem; font-size: 0.95rem; font-weight: 500; color: #1e293b;">${esc(item.nome)}</td>
-                <td style="padding: 0.75rem 0.5rem; font-size: 0.95rem; text-align: right; color: #1e293b; font-weight: bold;">${item.quantidade}</td>
+                <td style="padding: 0.75rem 0.5rem; font-size: 0.95rem; text-align: right; color: #1e293b; font-weight: bold;">${qtdSegura}</td>
                 <td style="padding: 0.75rem 0.5rem; font-size: 0.95rem; text-align: right; color: #475569;">
-                    R$ ${item.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ ${precoSeguro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </td>
                 <td style="padding: 0.75rem 0.5rem; font-size: 0.95rem; text-align: right; color: #1e293b; font-weight: bold;">
                     R$ ${sub.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}

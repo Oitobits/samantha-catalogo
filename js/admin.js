@@ -209,8 +209,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Adicionar imagem via Link Externo
     btnAddLink.addEventListener('click', async () => {
-        const url = prodLink.value.trim();
-        if (url) {
+        const rawUrl = prodLink.value.trim();
+        if (rawUrl) {
+            const url = typeof sanitizeImageUrl === 'function' ? sanitizeImageUrl(rawUrl, '') : rawUrl;
+            if (!url) {
+                alert('Link de imagem inválido. Utilize um link começando com https:// ou http://');
+                return;
+            }
             currentImages.push(url);
             try {
                 const thumbImage = await generateThumbnailFromUrl(url);
@@ -236,9 +241,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         currentImages.forEach((imgSrc, index) => {
             const wrapper = document.createElement('div');
             wrapper.className = 'image-thumb-wrapper';
+            const safeSrc = typeof sanitizeImageUrl === 'function' ? sanitizeImageUrl(imgSrc) : imgSrc;
             
             wrapper.innerHTML = `
-                <img src="${imgSrc}" alt="Miniatura ${index + 1}">
+                <img src="${safeSrc}" alt="Miniatura ${index + 1}">
                 <button type="button" class="remove-image-thumb" data-index="${index}">&times;</button>
             `;
             
@@ -278,8 +284,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const chip = document.createElement('span');
             chip.className = 'category-chip';
+            const safeCatName = typeof escapeHtml === 'function' ? escapeHtml(cat.nome) : cat.nome;
             chip.innerHTML = `
-                ${cat.nome}
+                ${safeCatName}
                 <button type="button" data-index="${index}">&times;</button>
             `;
 
@@ -408,10 +415,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             const safeDesc = esc(produto.descricao || '');
             const safeCod = esc(produto.codigo || 'S/C');
             const safeRef = esc(produto.referencia || 'S/R');
-            const imgSrc = produto.imagemThumb || produto.imagem || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="%23cbd5e1" stroke-width="1"><rect width="24" height="24" rx="2"/></svg>';
+            const rawImgSrc = produto.imagemThumb || produto.imagem || '';
+            const imgFallback = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="%23cbd5e1" stroke-width="1"><rect width="24" height="24" rx="2"/></svg>';
+            const imgSrc = typeof sanitizeImageUrl === 'function' ? sanitizeImageUrl(rawImgSrc, imgFallback) : (rawImgSrc || imgFallback);
             const isActive = produto.status === 'ativo';
             const cat = categories.find(c => String(c.id) === String(produto.categoriaId));
             const catNameText = esc(cat ? cat.nome : 'Sem Categoria');
+            const precoSeguro = Number(produto.preco) || 0;
 
             tr.innerHTML = `
                 <td>
@@ -423,7 +433,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </div>
                     </div>
                 </td>
-                <td>R$ ${produto.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td>R$ ${precoSeguro.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 <td style="text-align: center;">
                     <label class="switch">
                         <input type="checkbox" class="toggle-status-chk" data-id="${produto.id}" ${isActive ? 'checked' : ''}>
@@ -801,10 +811,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             li.style.padding = '0.75rem 1rem';
             li.style.borderBottom = '1px solid var(--border)';
 
+            const safeCatName = typeof escapeHtml === 'function' ? escapeHtml(cat.nome) : cat.nome;
             li.innerHTML = `
-                <span style="font-weight: 500;">${cat.nome}</span>
+                <span style="font-weight: 500;">${safeCatName}</span>
                 <div style="display: flex; gap: 0.25rem;">
-                    <button class="btn btn-secondary btn-sm edit-cat-btn" data-id="${cat.id}" data-nome="${cat.nome}" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Editar</button>
+                    <button class="btn btn-secondary btn-sm edit-cat-btn" data-id="${cat.id}" data-nome="${safeCatName}" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Editar</button>
                     <button class="btn btn-danger btn-sm delete-cat-btn" data-id="${cat.id}" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Excluir</button>
                 </div>
             `;

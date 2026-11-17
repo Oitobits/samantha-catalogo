@@ -60,12 +60,13 @@ export default {
             const verifyData = await verifyResp.json();
             const user = verifyData.users && verifyData.users[0];
             const email = user && user.email ? user.email.toLowerCase() : '';
+            const isVerified = user && user.emailVerified === true;
 
-            if (!email || !ALLOWED_EMAILS.includes(email)) {
-                return new Response('Forbidden: Email not authorized', { status: 403, headers: CORS_HEADERS });
+            if (!email || !isVerified || !ALLOWED_EMAILS.includes(email)) {
+                return new Response('Forbidden: Email not authorized or not verified', { status: 403, headers: CORS_HEADERS });
             }
 
-            // 2. Validar nome do arquivo e tipo de conteúdo
+            // 2. Validar nome do arquivo, tipo de conteúdo e tamanho máximo (10 MB)
             const url = new URL(request.url);
             const key = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
             if (!key || key.includes('..') || !/^[a-zA-Z0-9._-]+$/.test(key)) {
@@ -78,8 +79,11 @@ export default {
                 return new Response('Unsupported Media Type', { status: 415, headers: CORS_HEADERS });
             }
 
-            // 3. Gravar no Bucket R2 vinculado
+            // 3. Gravar no Bucket R2 vinculado (máximo 10 MB)
             const body = await request.arrayBuffer();
+            if (body.byteLength > 10 * 1024 * 1024) {
+                return new Response('Payload Too Large (max 10 MB)', { status: 413, headers: CORS_HEADERS });
+            }
             await env.CATALOGO_BUCKET.put(key, body, {
                 httpMetadata: { contentType }
             });

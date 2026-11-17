@@ -46,11 +46,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadCatalog();
     } catch (error) {
         console.error('Falha ao inicializar o banco de dados:', error);
+        const safeErr = typeof escapeHtml === 'function' ? escapeHtml(error.message || error) : (error.message || error);
         productsContainer.innerHTML = `
             <div class="empty-state">
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="red" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                 <h3>Erro no Banco de Dados</h3>
-                <p>Não foi possível carregar o banco de dados local. Detalhes: ${error.message || error}</p>
+                <p>Não foi possível carregar o banco de dados local. Detalhes: ${safeErr}</p>
             </div>
         `;
     }
@@ -280,13 +281,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             const esc = typeof escapeHtml === 'function' ? escapeHtml : (v => v || '');
+            const safeImg = typeof sanitizeImageUrl === 'function' ? sanitizeImageUrl(cardImgSrc, fallbackSrc) : cardImgSrc;
             const safeTitle = esc(displayTitle);
             const safeCod = esc(produto.codigo || 'S/C');
             const safeRef = esc(produto.referencia || 'S/R');
+            const precoSeguro = Number(produto.preco) || 0;
 
             card.innerHTML = `
                 <div class="product-image-container">
-                    <img class="card-product-img" src="${cardImgSrc}" alt="${safeTitle}" loading="lazy" decoding="async">
+                    <img class="card-product-img" src="${safeImg}" alt="${safeTitle}" loading="lazy" decoding="async">
                     ${arrowsHtml}
                     ${dotsHtml}
                 </div>
@@ -297,7 +300,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </div>
                     <h3 class="product-desc" title="${safeTitle}">${safeTitle}</h3>
                     <div class="product-footer">
-                        <span class="product-price">R$ ${produto.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        <span class="product-price">R$ ${precoSeguro.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         <span class="badge badge-success" style="font-size: 0.7rem; font-weight: 500;">Disponível</span>
                     </div>
                 </div>
@@ -454,7 +457,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (descTitleElement) descTitleElement.style.display = 'none';
         }
         
-        modalPrice.textContent = `R$ ${produto.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        modalPrice.textContent = `R$ ${(Number(produto.preco) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
         // Salva a posição atual do scroll ANTES de abrir o modal
         savedScrollPosition = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
