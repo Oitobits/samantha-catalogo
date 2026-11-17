@@ -9,11 +9,8 @@ const firebaseConfig = {
     appId: "1:865785827881:web:9c0b4b7af017f66999c238"
 };
 
-// Configuração do Cloudflare R2 Object Storage
+// Configuração do Cloudflare R2 Object Storage (via Worker autenticado)
 const r2Config = {
-    accountId: "931505824994482352abbc7fa658c331",
-    bucketName: "catalogo-samantha-facilita",
     publicUrl: "https://pub-f95b17a1d5b746a7846b6e33f7055f52.r2.dev",
-    accessKeyId: "4f9e625cc7d1587643caf353c36b9313",
-    secretAccessKey: "7b2e16c31d064e153597564df11fbd21240296a89de7d6a5e796b01d29fa37d2"
+    workerUrl: "https://r2-upload-facilita.edenirm.workers.dev"
 };
