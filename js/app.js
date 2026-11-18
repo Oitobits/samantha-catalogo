@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sortSelect = document.getElementById('sortSelect');
     const categorySelect = document.getElementById('categorySelect');
     const btnLoadMore = document.getElementById('btnLoadMore');
-    const btnSyncVitrine = document.getElementById('btnSyncVitrine');
     
     // Modal de Detalhes
     const detailsModal = document.getElementById('detailsModal');
@@ -88,27 +87,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadRemainingCatalogInBackground(hasCache);
     }
 
-    // Botão de atualização manual na vitrine
-    if (btnSyncVitrine) {
-        btnSyncVitrine.addEventListener('click', async () => {
-            const origHtml = btnSyncVitrine.innerHTML;
-            btnSyncVitrine.innerHTML = '<span>⏳ Atualizando...</span>';
-            try {
-                const refreshed = await syncProductsCache(null, true);
-                if (refreshed && refreshed.length > 0) {
-                    allProducts = refreshed;
-                    applyFiltersAndSort();
-                }
-                btnSyncVitrine.innerHTML = '<span>✅ Atualizado!</span>';
-                setTimeout(() => {
-                    btnSyncVitrine.innerHTML = origHtml;
-                }, 2000);
-            } catch (e) {
-                console.error('Erro ao atualizar vitrine:', e);
-                btnSyncVitrine.innerHTML = origHtml;
+    let lastBackgroundSyncAt = Date.now();
+
+    // Sincronização automática silenciosa caso o cliente volte para a aba após mais de 10 minutos fora
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            const elapsed = Date.now() - lastBackgroundSyncAt;
+            if (elapsed > 10 * 60 * 1000) {
+                lastBackgroundSyncAt = Date.now();
+                loadRemainingCatalogInBackground(true);
             }
-        });
-    }
+        }
+    });
 
     async function loadRemainingCatalogInBackground(hasCache = false) {
         try {

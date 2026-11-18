@@ -254,7 +254,9 @@ async function syncProductsCache(onProgress = null, forceFull = false) {
                     const map = new Map();
                     cached.forEach(p => map.set(String(p.id), p));
 
-                    // 1. Busca alterações desde a última sincronização (com margem de segurança de 5 min)
+                    let deltaOk = false;
+
+                    // 1. Quando já temos timestamp de sync, busca SOMENTE o que foi alterado ou criado após ele (~2 leituras se nada mudou)
                     if (safeSyncTime) {
                         try {
                             const deltaSnap = await dbFirestore.collection('produtos')
@@ -263,32 +265,41 @@ async function syncProductsCache(onProgress = null, forceFull = false) {
                             if (!deltaSnap.empty) {
                                 deltaSnap.forEach(doc => applySyncedDocToMap(doc, map, recentItems, deletedIds));
                             }
+
+                            const createdSnap = await dbFirestore.collection('produtos')
+                                .where('dataCadastro', '>=', safeSyncTime)
+                                .get();
+                            if (!createdSnap.empty) {
+                                createdSnap.forEach(doc => applySyncedDocToMap(doc, map, recentItems, deletedIds));
+                            }
+                            deltaOk = true;
                         } catch (deltaErr) {
-                            console.warn('Busca delta por dataAtualizacao usará fallback ordenado:', deltaErr);
+                            console.warn('Busca delta por timestamp usará fallback ordenado:', deltaErr);
                         }
                     }
 
-                    // 2. Busca os mais recentemente atualizados para garantir que qualquer edição/exclusão seja capturada
-                    const orderSnap = await dbFirestore.collection('produtos')
-                        .orderBy('dataAtualizacao', 'desc')
-                        .limit(200)
-                        .get();
-
-                    if (!orderSnap.empty) {
-                        orderSnap.forEach(doc => applySyncedDocToMap(doc, map, recentItems, deletedIds));
-                    }
-
-                    // 3. Busca também os mais recentemente criados (dataCadastro desc)
-                    try {
-                        const createSnap = await dbFirestore.collection('produtos')
-                            .orderBy('dataCadastro', 'desc')
-                            .limit(50)
+                    // 2. Fallback apenas na primeira execução sem timestamp (ou se a busca delta falhar)
+                    if (!deltaOk) {
+                        const orderSnap = await dbFirestore.collection('produtos')
+                            .orderBy('dataAtualizacao', 'desc')
+                            .limit(200)
                             .get();
-                        if (!createSnap.empty) {
-                            createSnap.forEach(doc => applySyncedDocToMap(doc, map, recentItems, deletedIds));
+
+                        if (!orderSnap.empty) {
+                            orderSnap.forEach(doc => applySyncedDocToMap(doc, map, recentItems, deletedIds));
                         }
-                    } catch (cErr) {
-                        // Ignora caso campo não indexado
+
+                        try {
+                            const createSnap = await dbFirestore.collection('produtos')
+                                .orderBy('dataCadastro', 'desc')
+                                .limit(50)
+                                .get();
+                            if (!createSnap.empty) {
+                                createSnap.forEach(doc => applySyncedDocToMap(doc, map, recentItems, deletedIds));
+                            }
+                        } catch (cErr) {
+                            // Ignora caso campo não indexado
+                        }
                     }
 
                     if (recentItems.length > 0) {
